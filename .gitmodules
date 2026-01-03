@@ -1,6 +1,8 @@
+[submodule "goober"]
+	path = goober
+	url = https://github.com/abdulziaa/goober/
+	branch = dev
 [submodule "ascent-r3-drivers"]
 	path = ascent-r3-drivers
 	url = https://github.com/SEDS-RD-ASU/ascent-r3-drivers
-[submodule "goober"]
-	path = goober
-	url = https://github.com/abdulziaa/goober
+	branch = main
