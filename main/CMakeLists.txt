@@ -1,3 +1,9 @@
-idf_component_register(SRCS "main.c"
-                       PRIV_REQUIRES spi_flash
-                       INCLUDE_DIRS "")
+idf_component_register(
+    SRCS
+        "main.c"
+    REQUIRES
+        spi_flash
+        bmp390l
+    INCLUDE_DIRS
+        "${CMAKE_CURRENT_SOURCE_DIR}/../"
+)
