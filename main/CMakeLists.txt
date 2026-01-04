@@ -1,9 +1,19 @@
 idf_component_register(
     SRCS
         "main.c"
+        "memory/flash_interface.c"
+        "memory/nvs_interface.c"
+        "memory/serial_util.c"
+        "fsm/flight.c"
     REQUIRES
         spi_flash
         bmp390l
+        w25qxx
+        nvs_flash
+        pyro
+        esp_psram
     INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
+        "memory"
+        "fsm"
 )

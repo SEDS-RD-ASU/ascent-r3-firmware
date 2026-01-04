@@ -52,7 +52,7 @@ void validate_esp(void)
 esp_err_t flight_initialize_devices(void){
     esp_err_t ret = ESP_OK;
     
-    // ret= i2c_manager_init(5, 6, 400000, I2C_NUM_0); // ASCENT R2 I2C BUS. REPLACE w/ R3 BEFORE COMPILING.
+    ret= i2c_manager_init(5, 6, 400000, I2C_NUM_0); // ASCENT R2 I2C BUS. REPLACE w/ R3 BEFORE COMPILING.
     if (ret != ESP_OK) {
         ESP_LOGE("flight_initialize_devices", "Failed to initialize I2C");
         return ret;
