@@ -57,7 +57,7 @@ esp_err_t flight_initialize_devices(void){
 
     ret = buzzer_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE BUZZER"); return ret;}
-    // ascent_beep();
+    ascent_beep();
 
     ret = i2c_flight_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE I2C BUSSES"); return ret;}

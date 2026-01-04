@@ -14,6 +14,7 @@ idf_component_register(
         pyro
         esp_psram
         indicator
+        sam_m10q
     INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
         "memory"

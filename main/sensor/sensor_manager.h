@@ -11,6 +11,7 @@
 #include "ascent_r3_hardware_definition.h"
 
 #include "interface_bmp390l.h"
+#include "interface_sam_m10q.h"
 
 #define R2 // REMOVE IF COMPILING FOR R2
 
