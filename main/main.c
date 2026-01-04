@@ -65,6 +65,9 @@ esp_err_t flight_initialize_devices(void){
     ret = spi_flight_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SPI BUSSES"); return ret;}
 
+    ret = initialize_sensors();
+    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SENSORS"); return ret;}
+
     return ESP_OK;
 }
 
@@ -77,6 +80,6 @@ void app_main(void)
 
     esp_err_t ret;
     ret = flight_initialize_devices();
-    if (ret != ESP_OK) {ESP_LOGE("app_main", "Failed to initialize devices!"); fail++;}
+    if (ret != ESP_OK) {ESP_LOGE("app_main", "DEVICE INITIALIZATION HAS FAILED!"); fail++;}
 
 }
