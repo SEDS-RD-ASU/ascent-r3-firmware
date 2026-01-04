@@ -5,4 +5,4 @@
 [submodule "ascent-r3-drivers"]
 	path = ascent-r3-drivers
 	url = https://github.com/SEDS-RD-ASU/ascent-r3-drivers
-	branch = main
+	branch = dev
