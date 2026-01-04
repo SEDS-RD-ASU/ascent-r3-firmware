@@ -5,6 +5,7 @@ idf_component_register(
         "memory/nvs_interface.c"
         "memory/serial_util.c"
         "fsm/flight.c"
+        "sensor/sensor_manager.c"
     REQUIRES
         spi_flash
         bmp390l
@@ -12,8 +13,10 @@ idf_component_register(
         nvs_flash
         pyro
         esp_psram
+        indicator
     INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
         "memory"
         "fsm"
+        "sensor"
 )

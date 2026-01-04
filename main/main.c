@@ -17,8 +17,11 @@
 #include "esp_log.h"
 
 //R3 DEVICE INTERFACES
+#include "driver_buzzer.h"
+#include "beep.h"
 #include "i2c_manager.h"
-#include "interface_bmp390l.h"
+#include "spi_manager.h"
+#include "sensor_manager.h"
 
 //MARK: INITIALIZATION CODE
 void validate_esp(void)
@@ -51,35 +54,29 @@ void validate_esp(void)
 
 esp_err_t flight_initialize_devices(void){
     esp_err_t ret = ESP_OK;
-    
-    ret= i2c_manager_init(5, 6, 400000, I2C_NUM_0); // ASCENT R2 I2C BUS. REPLACE w/ R3 BEFORE COMPILING.
-    if (ret != ESP_OK) {
-        ESP_LOGE("flight_initialize_devices", "Failed to initialize I2C");
-        return ret;
-    }
 
-    ret = bmp390_flight_init(I2C_NUM_0);
-    if (ret != ESP_OK) {
-        ESP_LOGE("flight_initialize_devices", "Failed to initialize BMP390");
-        return ret;
-    }
+    ret = buzzer_init();
+    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE BUZZER"); return ret;}
+    // ascent_beep();
 
-    ESP_LOGI("flight_initialize_devices", "Successfully initialized all devices!");
+    ret = i2c_flight_init();
+    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE I2C BUSSES"); return ret;}
+
+    ret = spi_flight_init();
+    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SPI BUSSES"); return ret;}
+
     return ESP_OK;
 }
 
 //MARK: ENTRY POINT
 void app_main(void)
-{
-    vTaskDelay(pdMS_TO_TICKS(1000)); // wait for serial monitor
-    
+{   
+    int fail = 0;
+
     validate_esp();
 
-    vTaskDelay(pdMS_TO_TICKS(3000));
-
-    esp_err_t ret = ESP_OK;
+    esp_err_t ret;
     ret = flight_initialize_devices();
-    if (ret != ESP_OK) {
-        ESP_LOGE("app_main", "Failed to initialize devices!");
-    }
+    if (ret != ESP_OK) {ESP_LOGE("app_main", "Failed to initialize devices!"); fail++;}
+
 }
