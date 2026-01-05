@@ -15,6 +15,8 @@ idf_component_register(
         esp_psram
         indicator
         sam_m10q
+        esp_timer
+        esp_driver_gptimer
     INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
         "memory"

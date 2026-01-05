@@ -15,6 +15,7 @@
 #include "esp_flash.h"
 #include "esp_system.h"
 #include "esp_log.h"
+#include "driver/gptimer.h"
 
 //R3 DEVICE INTERFACES
 #include "driver_buzzer.h"
@@ -52,7 +53,7 @@ void validate_esp(void)
     printf("Minimum free heap size: %" PRIu32 " bytes\n", esp_get_minimum_free_heap_size());
 }
 
-esp_err_t flight_initialize_devices(void){
+esp_err_t   flight_initialize_devices(void){
     esp_err_t ret = ESP_OK;
 
     ret = buzzer_init();
@@ -71,15 +72,93 @@ esp_err_t flight_initialize_devices(void){
     return ESP_OK;
 }
 
+void measure_performance() {
+    uint64_t times = 0;
+    uint64_t timef = 0;
+    double pres = 0;
+
+    gptimer_handle_t gptimer = NULL;
+    gptimer_config_t timer_config = {
+        .clk_src = GPTIMER_CLK_SRC_XTAL,
+        .direction = GPTIMER_COUNT_UP,
+        .resolution_hz = 20 * 1000 * 1000
+    };
+    // Create a timer instance
+    ESP_ERROR_CHECK(gptimer_new_timer(&timer_config, &gptimer));
+    // Enable the timer
+    ESP_ERROR_CHECK(gptimer_enable(gptimer));
+    // Start the timer
+    ESP_ERROR_CHECK(gptimer_start(gptimer));
+
+
+    barometer_sample_t baro;
+    float agl, vel, avg_vel;
+
+    gps_sample_t gps;
+
+    esp_err_t ret;
+
+    const unsigned MEASUREMENTS = 1000;
+
+    gptimer_get_raw_count(gptimer, &times);
+    
+    for (int retries = 0; retries < MEASUREMENTS; retries++) {
+        poll_gps(&gps);
+    }
+
+    gptimer_get_raw_count(gptimer, &timef);
+
+    printf("%u iterations took %llu ticks (%llu ticks per measurement)\n",
+        MEASUREMENTS, (timef - times), (timef - times)/MEASUREMENTS);
+
+    megolavania();
+}
+
+//MARK: PRIMARY TASK
+TaskHandle_t primary_task_handle;
+int primary_loop_fq = 100;
+TickType_t xFrequency_primary;
+void primary_task(void *pvParameters)
+{
+    const TickType_t xFrequency_primary = pdMS_TO_TICKS(1000 / primary_loop_fq);
+
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    uint32_t cycle = 0;
+
+    barometer_sample_t baro;
+    gps_sample_t gps;
+
+    while (1)
+    {
+        float agl, vel, avg_vel;
+
+        poll_gps(&gps);
+
+        poll_barometer(&baro);
+        baro_update(baro, &agl, &vel, &avg_vel);
+
+        cycle = (cycle + 1) % primary_loop_fq;
+        vTaskDelayUntil(&xLastWakeTime, xFrequency_primary);
+    }
+}
+
 //MARK: ENTRY POINT
 void app_main(void)
-{   
-    int fail = 0;
+{
 
     validate_esp();
 
     esp_err_t ret;
     ret = flight_initialize_devices();
-    if (ret != ESP_OK) {ESP_LOGE("app_main", "DEVICE INITIALIZATION HAS FAILED!"); fail++;}
+    if (ret != ESP_OK) {
+        ESP_LOGE("app_main", "DEVICE INITIALIZATION HAS FAILED!");
+        error_beep();
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        esp_restart();
+    }
+
+    // measure_performance();
+
+    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
 
 }
