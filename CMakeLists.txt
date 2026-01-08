@@ -6,6 +6,7 @@ set(EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/bmp390l"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/comm/i2c"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/comm/spi"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/comm/uart"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/hardware_io/pyro"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/indicator"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/neopixel"

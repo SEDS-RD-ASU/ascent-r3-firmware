@@ -17,6 +17,7 @@ idf_component_register(
         sam_m10q
         esp_timer
         esp_driver_gptimer
+        uart
     INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
         "memory"

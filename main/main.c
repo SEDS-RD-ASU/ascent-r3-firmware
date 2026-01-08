@@ -22,6 +22,7 @@
 #include "beep.h"
 #include "i2c_manager.h"
 #include "spi_manager.h"
+#include "uart_manager.h"
 #include "sensor_manager.h"
 
 //MARK: INITIALIZATION CODE
@@ -65,6 +66,9 @@ esp_err_t   flight_initialize_devices(void){
 
     ret = spi_flight_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SPI BUSSES"); return ret;}
+
+    ret = uart_flight_init();
+    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE UART BUSSES"); return ret;}
 
     ret = initialize_sensors();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SENSORS"); return ret;}
