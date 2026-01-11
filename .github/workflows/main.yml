@@ -1,4 +1,4 @@
-name: Compile Ascent R2 Firmware
+name: Locally build and flash ESP-IDF project to a connected board.
 
 on: [push]
 
