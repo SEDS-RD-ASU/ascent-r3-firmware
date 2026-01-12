@@ -11,7 +11,7 @@
 
 static nvs_handle_t my_handle;
 
-void nvs_interface_init(void)
+esp_err_t nvs_interface_init(void)
 {
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -27,13 +27,13 @@ void nvs_interface_init(void)
         // use the above two commented out lines...
 
         printf("Failed initalize nvs flash\n");
-
-        esp_restart();
     }
 
     if (nvs_open("storage", NVS_READWRITE, &my_handle) != ESP_OK) {
         printf("Failed open nvs storage\n");
     }
+
+    return err;
 }
 
 nvs_handle_t nvs_interface_get_handle(void)

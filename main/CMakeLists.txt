@@ -18,6 +18,7 @@ idf_component_register(
         esp_timer
         esp_driver_gptimer
         uart
+        spi
     INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
         "memory"

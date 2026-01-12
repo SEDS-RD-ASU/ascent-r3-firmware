@@ -22,6 +22,8 @@
 #include "beep.h"
 #include "driver_buzzer.h"
 
+static const char *TAG = "FLASH INTERFACE";
+
 #define MAX_SECTORS 16384
 #define SECTOR_SIZE 4096
 
@@ -56,18 +58,11 @@ uint32_t flash_get_addr() {
     return addr;
 }
 
-void flash_flight_init(void)
+esp_err_t flash_flight_init(void)
 {
-    uint8_t res;
+    esp_err_t ret;
 
-    res = w25qxx_init();
-    if (res) {
-        for (int i = 0; i < 3; i++) {
-            error_beep();
-            vTaskDelay(500 / portTICK_PERIOD_MS);
-        }
-        esp_restart();
-    }
+    ret = w25qxx_init();
 
     // not needed called by init boot sequence
     // nvs_interface_init();
@@ -94,6 +89,13 @@ void flash_flight_init(void)
 
     flash_packet_queue = xQueueCreate(RING_BUFFER_SIZE, sizeof(flash_packet));
     assert(flash_packet_queue != NULL);
+
+
+    if(ret == ESP_OK){
+        ESP_LOGI(TAG, "Initialized SPI flash!");
+    }
+
+    return ret;
 }
 
 bool flash_erase_next_bank_no_advance(int64_t max_time, int32_t* resume) {

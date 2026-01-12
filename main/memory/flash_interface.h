@@ -12,7 +12,7 @@ typedef struct {
 
 uint32_t flash_get_addr();
 
-void flash_flight_init(void);
+esp_err_t flash_flight_init(void);
 
 bool flash_erase_next_bank_no_advance(int64_t max_time, int32_t* resume);
 

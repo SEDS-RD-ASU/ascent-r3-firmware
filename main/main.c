@@ -24,6 +24,8 @@
 #include "spi_manager.h"
 #include "uart_manager.h"
 #include "sensor_manager.h"
+#include "flash_interface.h"
+#include "nvs_interface.h"
 
 //MARK: INITIALIZATION CODE
 void validate_esp(void)
@@ -61,6 +63,9 @@ esp_err_t flight_initialize_devices(void){
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE BUZZER"); return ret;}
     ascent_beep(); // beep boop
 
+    ret = nvs_interface_init();
+    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE NVS"); return ret;}
+
     ret = i2c_flight_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE I2C BUSSES"); return ret;}
 
@@ -73,7 +78,14 @@ esp_err_t flight_initialize_devices(void){
     ret = initialize_sensors();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SENSORS"); return ret;}
     
+    ret = flash_flight_init();
+    if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
+
     high_beep();high_beep();high_beep(); // success!
+
+    printf("\n\n");
+    ESP_LOGI("flight_initialize_devices", "All devices initialized successfully!");
+    printf("\n\n");
 
     return ESP_OK;
 }
