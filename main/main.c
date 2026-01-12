@@ -54,7 +54,7 @@ void validate_esp(void)
     printf("Minimum free heap size: %" PRIu32 " bytes\n", esp_get_minimum_free_heap_size());
 }
 
-esp_err_t   flight_initialize_devices(void){
+esp_err_t flight_initialize_devices(void){
     esp_err_t ret = ESP_OK;
 
     ret = buzzer_init();
