@@ -14,7 +14,7 @@
 #include "interface_bmp390l.h"
 #include "interface_sam_m10q.h"
 
-#define R2 // REMOVE IF COMPILING FOR R2
+// #define R2 // REMOVE IF COMPILING FOR R2
 
 typedef struct {
     int64_t timestamp;
