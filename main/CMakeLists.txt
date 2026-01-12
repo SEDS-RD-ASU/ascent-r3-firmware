@@ -19,6 +19,7 @@ idf_component_register(
         esp_driver_gptimer
         uart
         spi
+        lsm6dsv320x
     INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
         "memory"

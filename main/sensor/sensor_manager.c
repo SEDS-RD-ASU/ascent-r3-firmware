@@ -24,13 +24,16 @@ esp_err_t initialize_sensors(void)
     SAM_M10Q_I2C_PORT = R2_I2C0_PORT;
     #endif
     
-    ret = bmp390_flight_init(BMP390_I2C_PORT);
-    if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE BMP390"); return ret;}
+    // ret = bmp390_flight_init(BMP390_I2C_PORT);
+    // if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE BMP390"); return ret;}
 
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    // vTaskDelay(pdMS_TO_TICKS(1000));
     
-    ret = GPS_init(SAM_M10Q_I2C_PORT);
-    if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE SAM-M10Q"); return ret;}
+    // ret = GPS_init(SAM_M10Q_I2C_PORT);
+    // if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE SAM-M10Q"); return ret;}
+
+    ret = lsm_flight_init(SPI2_HOST);
+    if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE LSM"); return ret;}
 
     ESP_LOGI(TAG, "SUCCESSFULLY INITIALIZED ALL SENSORS");
     return ESP_OK;

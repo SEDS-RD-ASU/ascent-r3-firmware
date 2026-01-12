@@ -1,3 +1,5 @@
+// ATTENTION: THIS IS FOR DEVELOPING DRIVERS FOR THE IMU BREAKOUT! DO NOT MERGE THIS CODE.
+
 /**
  * @file main.c
  * @author Abdul Zia
@@ -66,20 +68,20 @@ esp_err_t flight_initialize_devices(void){
     ret = nvs_interface_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE NVS"); return ret;}
 
-    ret = i2c_flight_init();
-    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE I2C BUSSES"); return ret;}
+    // ret = i2c_flight_init();
+    // if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE I2C BUSSES"); return ret;}
 
     ret = spi_flight_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SPI BUSSES"); return ret;}
 
-    ret = uart_flight_init();
-    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE UART BUSSES"); return ret;}
+    // ret = uart_flight_init();
+    // if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE UART BUSSES"); return ret;}
 
     ret = initialize_sensors();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SENSORS"); return ret;}
     
-    ret = flash_flight_init();
-    if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
+    // ret = flash_flight_init();
+    // if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
 
     high_beep();high_beep();high_beep(); // success!
 
@@ -177,6 +179,6 @@ void app_main(void)
 
     // measure_performance();
 
-    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
+    // xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
 
 }
