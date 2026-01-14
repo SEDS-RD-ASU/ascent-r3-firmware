@@ -18,8 +18,10 @@
 #include "driver/gptimer.h"
 
 //R3 DEVICE INTERFACES
+#include "ascent_r3_hardware_definition.h"
 #include "driver_buzzer.h"
 #include "beep.h"
+#include "onboard_led.h"
 #include "i2c_manager.h"
 #include "spi_manager.h"
 #include "uart_manager.h"
@@ -62,6 +64,10 @@ esp_err_t flight_initialize_devices(void){
     ret = buzzer_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE BUZZER"); return ret;}
     ascent_beep(); // beep boop
+    
+    ret = led_init(PIN_LED);
+    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE LED"); return ret;}
+    led_blue(); // let there be light
 
     ret = nvs_interface_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE NVS"); return ret;}
@@ -81,6 +87,7 @@ esp_err_t flight_initialize_devices(void){
     ret = flash_flight_init();
     if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
 
+    led_green();
     high_beep();high_beep();high_beep(); // success!
 
     printf("\n\n");
@@ -171,6 +178,7 @@ void app_main(void)
     if (ret != ESP_OK) {
         ESP_LOGE("app_main", "DEVICE INITIALIZATION HAS FAILED!");
         error_beep();
+        led_red();
         vTaskDelay(pdMS_TO_TICKS(1000));
         esp_restart();
     }

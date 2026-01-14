@@ -9,7 +9,6 @@ set(EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/comm/uart"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/hardware_io/pyro"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/indicator"
-    "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/neopixel"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/patch/adc"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/psu"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/sam_m10q"
