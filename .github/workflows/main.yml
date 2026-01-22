@@ -1,4 +1,4 @@
-name: Compile Ascent R2 Firmware
+name: Compile Ascent R3 Firmware
 
 on: [push]
 
