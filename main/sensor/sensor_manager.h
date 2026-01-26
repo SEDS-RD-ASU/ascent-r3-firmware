@@ -47,9 +47,16 @@ typedef struct {
     float gyr_z;
 } gyr_sample_t;
 
+typedef struct {
+    barometer_sample_t baro;
+    TaskHandle_t read_baro_task;
+} bmp_context_t;
+
 esp_err_t initialize_sensors(void);
 
-esp_err_t poll_barometer(barometer_sample_t *baro);
+void read_baro(void *args);
+
+void barometer_int_callback(void *args);
 
 esp_err_t poll_gps(gps_sample_t *gps);
 

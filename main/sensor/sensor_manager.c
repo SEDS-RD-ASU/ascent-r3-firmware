@@ -10,6 +10,10 @@ static const char *TAG = "SENSOR MANAGER";
 
 static bool simulator = false; // simulating flight?
 
+static bmp_context_t bmp_ctx = {0};
+extern barometer_sample_t global_baro;
+
+extern float agl, vel, avg_vel;
 
 // MARK: SENSOR INITIALIZATION
 esp_err_t initialize_sensors(void)
@@ -18,7 +22,9 @@ esp_err_t initialize_sensors(void)
     i2c_port_t BMP390_I2C_PORT = R3_I2C1_PORT;
     i2c_port_t SAM_M10Q_I2C_PORT = R3_I2C0_PORT;
     
-    ret = bmp390_flight_init(BMP390_I2C_PORT);
+    memset(&bmp_ctx, 0, sizeof(bmp_context_t));
+    xTaskCreatePinnedToCore(read_baro, "read_baro_task", 4096, &bmp_ctx, 5, &bmp_ctx.read_baro_task, 1);
+    ret = bmp390_flight_init(BMP390_I2C_PORT, barometer_int_callback, &bmp_ctx);
     if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE BMP390"); return ret;}
 
     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -30,23 +36,41 @@ esp_err_t initialize_sensors(void)
     return ESP_OK;
 }
 
-// MARK: SENSOR POLLING
-esp_err_t poll_barometer(barometer_sample_t *baro)
-{
-    if(simulator) {
-        ;
-    }
-    else { 
-        baro_double_t bmp390_out;
-        bmp390_get_local(&bmp390_out);
-        baro->timestamp = esp_timer_get_time();
-        baro->pressure = bmp390_out.pressure;
-        baro->temperature = bmp390_out.temperature;
-        baro->altitude_agl = bmp390_out.alt;
-        baro->ground_altitude = bmp390_ground_altitude();
-    }
 
-    return ESP_OK;
+void read_baro(void *args)
+{
+    bmp_context_t *ctx = (bmp_context_t *)args;
+    
+    while(1) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        
+        if(simulator) {
+            ;
+        }
+        else { 
+            baro_double_t bmp390_out;
+            bmp390_get_local(&bmp390_out);
+            ctx->baro.timestamp = esp_timer_get_time();
+            ctx->baro.pressure = bmp390_out.pressure;
+            ctx->baro.temperature = bmp390_out.temperature;
+            ctx->baro.altitude_agl = bmp390_out.alt;
+            ctx->baro.ground_altitude = bmp390_ground_altitude();
+            global_baro = ctx->baro; // update global baro sample
+            
+            baro_update(ctx->baro, &agl, &vel, &avg_vel);
+        }
+    }
+}
+
+void barometer_int_callback(void *args)
+{
+    bmp_context_t *ctx = (bmp_context_t *)args;
+    
+    if (ctx != NULL && ctx->read_baro_task != NULL) {
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        vTaskNotifyGiveFromISR(ctx->read_baro_task, &xHigherPriorityTaskWoken);
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    }
 }
 
 esp_err_t poll_gps(gps_sample_t *gps)
