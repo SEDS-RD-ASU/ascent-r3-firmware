@@ -19,3 +19,5 @@ jobs:
           idf.py build
       - name: make user own files after build
         run: sudo chown -R $(whoami) $HOME/actions-runner
+      - name: copy compiles binaries into storage
+        run: /home/abdul/actions-runner/copy_firmware_files.sh 
