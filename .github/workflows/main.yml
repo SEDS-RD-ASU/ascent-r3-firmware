@@ -1,19 +1,21 @@
-name: Compile Ascent R3 Firmware
+name: Locally build the esp-idf firmware.
 
 on: [push]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build_and_flash:
+    runs-on: self-hosted
 
     steps:
+      - name: make user own files before checkout
+        run: sudo chown -R $(whoami) $HOME/actions-runner
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          token: ${{ secrets.PAT_TOKEN }}
       - name: esp-idf build
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: v5.5.1
-          target: esp32s3
-          path: '/'
+        run: |
+          . $HOME/esp/esp-idf/export.sh
+          idf.py fullclean
+          idf.py build
+      - name: make user own files after build
+        run: sudo chown -R $(whoami) $HOME/actions-runner
