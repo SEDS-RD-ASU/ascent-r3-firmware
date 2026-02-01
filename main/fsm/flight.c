@@ -46,7 +46,6 @@ void flight_config_init(void) {
         nvs_set_flight_config(&cfg);
     }
     atomic_store(&flight_config, cfg);
-    print_flight_config(cfg);
 }
 
 void flight_config_set(flight_config_t *cfg) {
@@ -257,29 +256,30 @@ const char* get_flight_state_name(void) {
     return "UNKNOWN";
 }
 
-
-void print_flight_config(flight_config_t cfg){
-    printf("Flight config:\n");
-    printf("  lift_off_acceleration_threshold: %f\n", cfg.lift_off_acceleration_threshold);
-    printf("  lift_off_tick_count: %d\n", cfg.lift_off_tick_count);
-    printf("  apogee_acceleration_threshold: %f\n", cfg.apogee_acceleration_threshold);
-    printf("  apogee_tick_count: %d\n", cfg.apogee_tick_count);
-    printf("  burnout_acceleration_threshold: %f\n", cfg.burnout_acceleration_threshold);
-    printf("  burnout_tick_count: %d\n", cfg.burnout_tick_count);
-    printf("  recovery_burnout_counter: %d\n", cfg.recovery_burnout_counter);
-    printf("  arm_at_boot: %d\n", cfg.arm_at_boot);
-    printf("  Appo_Channel: %d\n", cfg.Appo_Channel);
-    printf("  Mains_Channel: %d\n", cfg.Mains_Channel);
-    printf("  Separation_Channel: %d\n", cfg.Separation_Channel);
-    printf("  Ignition_Channel: %d\n", cfg.Ignition_Channel);
-    printf("  Aux_1_Channel: %d\n", cfg.Aux_1_Channel);
-    printf("  Aux_2_Channel: %d\n", cfg.Aux_2_Channel);
-    printf("  Aux_3_Channel: %d\n", cfg.Aux_3_Channel);
-    printf("  Aux_4_Channel: %d\n", cfg.Aux_4_Channel);
-    printf("  panic_velocity_threshold: %f\n", cfg.panic_velocity_threshold);
-    printf("  main_deployment_altitude: %f\n", cfg.main_deployment_altitude);
-    printf("  main_deployment_tick_count: %d\n", cfg.main_deployment_tick_count);
-    printf("  highest_ground_elevation: %f\n", cfg.highest_ground_elevation);
-    printf("  landed_velocity_threshold: %f\n", cfg.landed_velocity_threshold);
-    printf("  landed_tick_count: %d\n", cfg.landed_tick_count);
+void print_flight_config(){
+    flight_config_t cfg = flight_config;
+    printf("\n=================   Flight Config   ====================\n");
+    printf("-> lift_off_acceleration_threshold: %f\n", cfg.lift_off_acceleration_threshold);
+    printf("-> lift_off_tick_count: %d\n", cfg.lift_off_tick_count);
+    printf("-> apogee_acceleration_threshold: %f\n", cfg.apogee_acceleration_threshold);
+    printf("-> apogee_tick_count: %d\n", cfg.apogee_tick_count);
+    printf("-> burnout_acceleration_threshold: %f\n", cfg.burnout_acceleration_threshold);
+    printf("-> burnout_tick_count: %d\n", cfg.burnout_tick_count);
+    printf("-> recovery_burnout_counter: %d\n", cfg.recovery_burnout_counter);
+    printf("-> arm_at_boot: %d\n", cfg.arm_at_boot);
+    printf("-> Appo_Channel: %d\n", cfg.Appo_Channel);
+    printf("-> Mains_Channel: %d\n", cfg.Mains_Channel);
+    printf("-> Separation_Channel: %d\n", cfg.Separation_Channel);
+    printf("-> Ignition_Channel: %d\n", cfg.Ignition_Channel);
+    printf("-> Aux_1_Channel: %d\n", cfg.Aux_1_Channel);
+    printf("-> Aux_2_Channel: %d\n", cfg.Aux_2_Channel);
+    printf("-> Aux_3_Channel: %d\n", cfg.Aux_3_Channel);
+    printf("-> Aux_4_Channel: %d\n", cfg.Aux_4_Channel);
+    printf("-> panic_velocity_threshold: %f\n", cfg.panic_velocity_threshold);
+    printf("-> main_deployment_altitude: %f\n", cfg.main_deployment_altitude);
+    printf("-> main_deployment_tick_count: %d\n", cfg.main_deployment_tick_count);
+    printf("-> highest_ground_elevation: %f\n", cfg.highest_ground_elevation);
+    printf("-> landed_velocity_threshold: %f\n", cfg.landed_velocity_threshold);
+    printf("-> landed_tick_count: %d\n", cfg.landed_tick_count);
+    printf("==================================================\n\n");
 }

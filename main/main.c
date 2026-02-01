@@ -29,6 +29,9 @@
 #include "flash_interface.h"
 #include "nvs_interface.h"
 
+//FLIGHT STATE MANAGEMENT
+#include "flight.h"
+
 //MARK: INITIALIZATION CODE
 void validate_esp(void)
 {
@@ -87,6 +90,10 @@ esp_err_t flight_initialize_devices(void){
     ret = flash_flight_init();
     if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
 
+    ret = nvs_interface_init();
+    if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE NVS INTERFACE"); return ret;}
+
+    print_board_info();
     led_green();
     high_beep();high_beep();high_beep(); // success!
 
@@ -186,5 +193,8 @@ void app_main(void)
     // measure_performance();
 
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
+
+    flight_config_init();
+    print_flight_config();
 
 }
