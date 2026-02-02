@@ -33,6 +33,6 @@ uint8_t get_flight_state(void);
 
 const char* get_flight_state_name(void);
 
-void print_flight_config(flight_config_t cfg);
+void print_flight_config();
 
 #endif

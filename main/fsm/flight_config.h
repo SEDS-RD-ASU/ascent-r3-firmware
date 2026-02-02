@@ -21,7 +21,7 @@
 
 #define PANIC_VEL (-240.0f/3.28)
 
-// ALL UNITES ARE IN METRIC SI UNITS
+// ALL UNITS ARE IN METRIC SI UNITS
 typedef struct {
     float lift_off_acceleration_threshold;
     uint8_t lift_off_tick_count;

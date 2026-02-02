@@ -28,9 +28,13 @@
 #include "sensor_manager.h"
 #include "flash_interface.h"
 #include "nvs_interface.h"
+#include "flash_interface.h"
 
 barometer_sample_t global_baro;
 float agl, vel, avg_vel;
+
+//FLIGHT STATE MANAGEMENT
+#include "flight.h"
 
 //MARK: INITIALIZATION CODE
 void validate_esp(void)
@@ -90,6 +94,7 @@ esp_err_t flight_initialize_devices(void){
     ret = flash_flight_init();
     if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
 
+    print_board_info();
     led_green();
     high_beep();high_beep();high_beep(); // success!
 
@@ -144,6 +149,7 @@ void measure_performance() {
 }
 
 //MARK: PRIMARY TASK
+// Will be running at 100Hz
 TaskHandle_t primary_task_handle;
 int primary_loop_fq = 100;
 TickType_t xFrequency_primary;
@@ -169,6 +175,17 @@ void primary_task(void *pvParameters)
     }
 }
 
+//MARK: SECONDARY TASK
+// Will be running as fast as possible
+TaskHandle_t secondary_task_handle;
+void secondary_task(void *pvParameters)
+{
+    while(1)
+    {
+        // code must go here   
+    }
+}
+
 //MARK: ENTRY POINT
 void app_main(void)
 {
@@ -184,6 +201,9 @@ void app_main(void)
         vTaskDelay(pdMS_TO_TICKS(1000));
         esp_restart();
     }
+
+    flight_config_init();
+    print_flight_config();
 
     // measure_performance();
 

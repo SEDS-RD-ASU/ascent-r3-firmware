@@ -2,12 +2,45 @@
 #define FLASH_INTERFACE_H
 
 #include "stdint.h"
-#include "interface_bmp390l.h"
+#include "sensor_manager.h"
 
 typedef struct {
-    uint32_t n;
-    int64_t timestamp;
+    uint64_t n;
+    int64_t timestamp; // return from esp_timer_get_time
     float bat_voltage;
+    uint8_t flight_state;
+    uint8_t pyro_cont;
+
+    //barometer_sample_t
+    double pressure;
+    double temperature;
+    double altitude_agl;
+    double ground_altitude;
+
+    //gps_sample_t
+    uint32_t UTCtstamp;
+    uint32_t lat;
+    uint32_t lon;
+    uint32_t altitude_ellipsoid;
+    uint32_t altitude_msl;
+    uint8_t fixType;
+    uint8_t num_sats;
+
+    //acc_sample_t
+    float acc_x;
+    float acc_y;
+    float acc_z;
+
+    //acc_sample_t
+    float hacc_x;
+    float hacc_y;
+    float hacc_z;
+
+    //gyr_sample_t
+    float gyr_x;
+    float gyr_y;
+    float gyr_z;
+
 } flash_packet;
 
 uint32_t flash_get_addr();
