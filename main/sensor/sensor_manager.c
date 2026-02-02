@@ -13,6 +13,8 @@ static bool simulator = false; // simulating flight?
 static bmp_context_t bmp_ctx = {0};
 
 bool barometer_data_ready = false;
+bool imu_data_ready = true; // todo: implement ISR for IMU
+bool gps_data_ready = true; // todo: implement ISR for GPS
 
 // MARK: SENSOR INITIALIZATION
 esp_err_t initialize_sensors(void)
@@ -44,14 +46,6 @@ esp_err_t initialize_sensors(void)
     return ESP_OK;
 }
 
-void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel)
-{
-    if (barometer_data_ready) {
-        poll_baro(pBaro);
-        baro_update(*pBaro, pBaro_vel);
-    }
-}
-
 void poll_baro(barometer_sample_t *pBaro)
 {
     if(simulator) {
@@ -74,7 +68,7 @@ void barometer_int_callback(void *args)
     portYIELD_FROM_ISR();
 }
 
-esp_err_t poll_gps(gps_sample_t *gps)
+static esp_err_t poll_gps(gps_sample_t *gps)
 {
     if(simulator) {
         ;
@@ -95,6 +89,31 @@ esp_err_t poll_gps(gps_sample_t *gps)
     return ESP_OK;
 }
 
+static esp_err_t poll_imu(acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr)
+{
+    lsm_raw_data_t raw_imu_data;
+    esp_err_t ret = lsm_get_local(&raw_imu_data);
+    if(ret) return ret;
+    int64_t timestamp = esp_timer_get_time();
+
+    high_g->timestamp = timestamp;
+    high_g->acc_x = raw_imu_data.highacc_x;
+    high_g->acc_y = raw_imu_data.highacc_y;
+    high_g->acc_z = raw_imu_data.highacc_z;
+
+    low_g->timestamp = timestamp;
+    low_g->acc_x = raw_imu_data.lowacc_x;
+    low_g->acc_y = raw_imu_data.lowacc_y;
+    low_g->acc_z = raw_imu_data.lowacc_z;
+
+    gyr->timestamp = timestamp;
+    gyr->gyr_x = raw_imu_data.gyr_x;
+    gyr->gyr_y = raw_imu_data.gyr_y;
+    gyr->gyr_z = raw_imu_data.gyr_z;
+
+    return ESP_OK;
+}
+
 // MARK: BAROMETRIC VELOCITY CALCULATION
 #define HISTORY_SIZE 3
 #define VELOCITY_HISTORY_SIZE 10
@@ -104,7 +123,7 @@ static float barometric_agl;
 static float barometric_velocity;
 static float average_barometric_velocity;
 
-void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel)
+static void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel)
 {
     static float agl_history[HISTORY_SIZE] = {0};  // Store the last 5 AGL readings
 
@@ -143,4 +162,18 @@ void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel)
     baro_vel->altitude_agl = barometric_agl;
     baro_vel->velocity = barometric_velocity;
     baro_vel->average_velocity = average_barometric_velocity;
+}
+
+void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel, acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr, gps_sample_t *gps)
+{
+    if (barometer_data_ready) {
+        poll_baro(pBaro);
+        baro_update(*pBaro, pBaro_vel);
+    }
+    if (imu_data_ready){
+        poll_imu(high_g, low_g, gyr);
+    }
+    if (gps_data_ready){
+        poll_gps(gps);
+    }
 }

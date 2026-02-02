@@ -61,14 +61,8 @@ typedef struct {
 
 esp_err_t initialize_sensors(void);
 
-void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel);
-
-void poll_baro(barometer_sample_t *pBaro);
+void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel, acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr, gps_sample_t *gps);
 
 void barometer_int_callback(void *args);
-
-esp_err_t poll_gps(gps_sample_t *gps);
-
-void baro_update(barometer_sample_t baro, barometer_velocity_t *pBaro_vel);
 
 #endif

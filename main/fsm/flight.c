@@ -64,17 +64,19 @@ static bool deploy(pyro_channel_t channel)
 {
     bool cont;
 
-    for (int i = 0; i < 2; i++) {
-        cont = pyro_continuity(channel);
-        if (cont) {
-            pyro_activate(channel, 150*(i+1), 0);
-            // vTaskDelay(50 / portTICK_PERIOD_MS);
-            cont = pyro_continuity(channel);
-            if (!cont) return true;
-        }
-    }
+    // disable pyros for daq firmware
+    
+    // for (int i = 0; i < 2; i++) {
+    //     cont = pyro_continuity(channel);
+    //     if (cont) {
+    //         pyro_activate(channel, 150*(i+1), 0);
+    //         // vTaskDelay(50 / portTICK_PERIOD_MS);
+    //         cont = pyro_continuity(channel);
+    //         if (!cont) return true;
+    //     }
+    // }
 
-    return false;
+    return true;
 }
 
 // VS code may say that this is an error bc it can't see APPO_GS but it will compile

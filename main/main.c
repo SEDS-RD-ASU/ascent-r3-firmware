@@ -30,8 +30,12 @@
 #include "nvs_interface.h"
 #include "flash_interface.h"
 
-barometer_sample_t global_baro;
-float agl, vel, avg_vel;
+barometer_sample_t baro;
+barometer_velocity_t baro_vel;
+acc_sample_t low_g_acc;
+acc_sample_t high_g_acc;
+gyr_sample_t gyr;
+gps_sample_t gps;
 
 //FLIGHT STATE MANAGEMENT
 #include "flight.h"
@@ -137,7 +141,6 @@ void measure_performance() {
     
     for (int retries = 0; retries < MEASUREMENTS; retries++) {
         //poll_gps(&gps);
-        poll_sensors(&baro, &baro_vel);
     }
 
     gptimer_get_raw_count(gptimer, &timef);
@@ -149,9 +152,9 @@ void measure_performance() {
 }
 
 //MARK: PRIMARY TASK
-// Will be running at 100Hz
+// Will be running at 50Hz
 TaskHandle_t primary_task_handle;
-int primary_loop_fq = 100;
+int primary_loop_fq = 50;
 TickType_t xFrequency_primary;
 void primary_task(void *pvParameters)
 {
@@ -160,15 +163,49 @@ void primary_task(void *pvParameters)
     TickType_t xLastWakeTime = xTaskGetTickCount();
     uint32_t cycle = 0;
 
-    gps_sample_t gps;
-
-    barometer_sample_t baro;
-    barometer_velocity_t baro_vel;
-
     while (1)
     {
-        poll_sensors(&baro, &baro_vel);
-        poll_gps(&gps);
+        uint8_t flight_state = get_flight_state();
+
+        #ifdef DEBUG
+        printf(
+            "baro[t=%" PRIi64 "] P=%.2f T=%.2f AGL=%.2f GND=%.2f | vel=%.2f avg=%.2f | "
+            "highG[%.3f %.3f %.3f] lowG[%.3f %.3f %.3f] gyr[%.3f %.3f %.3f] | "
+            "gps[t=%" PRIi64 " UTC=%" PRIu32 " lat=%" PRIu32 " lon=%" PRIu32 " altE=%" PRIu32 " altMSL=%" PRIu32 " fix=%u sats=%u]\n",
+            baro.timestamp,
+            baro.pressure,
+            baro.temperature,
+            baro.altitude_agl,
+            baro.ground_altitude,
+            baro_vel.velocity,
+            baro_vel.average_velocity,
+            high_g_acc.acc_x,
+            high_g_acc.acc_y,
+            high_g_acc.acc_z,
+            low_g_acc.acc_x,
+            low_g_acc.acc_y,
+            low_g_acc.acc_z,
+            gyr.gyr_x,
+            gyr.gyr_y,
+            gyr.gyr_z,
+            gps.timestamp,
+            gps.UTCtstamp,
+            gps.lat,
+            gps.lon,
+            gps.altitude_ellipsoid,
+            gps.altitude_msl,
+            gps.fixType,
+            gps.num_sats);
+        #endif
+
+        if (flight_state > FS_ON_PAD && flight_state != FS_LANDED) // if we are in the air, basically
+        {
+            printf("I am flying!!!\n");
+        } else {
+            // Do something while not flying
+        }
+
+        flight_update(baro.altitude_agl, baro_vel.velocity, baro_vel.average_velocity, high_g_acc.acc_y);
 
         cycle = (cycle + 1) % primary_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_primary);
@@ -182,7 +219,7 @@ void secondary_task(void *pvParameters)
 {
     while(1)
     {
-        // code must go here   
+        poll_sensors(&baro, &baro_vel, &high_g_acc, &low_g_acc, &gyr, &gps);
     }
 }
 
@@ -207,6 +244,8 @@ void app_main(void)
 
     // measure_performance();
 
-    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
+    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
+    xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 1);
+
 
 }
