@@ -29,6 +29,9 @@
 #include "flash_interface.h"
 #include "nvs_interface.h"
 
+barometer_sample_t global_baro;
+float agl, vel, avg_vel;
+
 //MARK: INITIALIZATION CODE
 void validate_esp(void)
 {
@@ -117,7 +120,7 @@ void measure_performance() {
 
 
     barometer_sample_t baro;
-    float agl, vel, avg_vel;
+    barometer_velocity_t baro_vel;
 
     gps_sample_t gps;
 
@@ -128,7 +131,8 @@ void measure_performance() {
     gptimer_get_raw_count(gptimer, &times);
     
     for (int retries = 0; retries < MEASUREMENTS; retries++) {
-        poll_gps(&gps);
+        //poll_gps(&gps);
+        poll_sensors(&baro, &baro_vel);
     }
 
     gptimer_get_raw_count(gptimer, &timef);
@@ -150,17 +154,15 @@ void primary_task(void *pvParameters)
     TickType_t xLastWakeTime = xTaskGetTickCount();
     uint32_t cycle = 0;
 
-    barometer_sample_t baro;
     gps_sample_t gps;
+
+    barometer_sample_t baro;
+    barometer_velocity_t baro_vel;
 
     while (1)
     {
-        float agl, vel, avg_vel;
-
+        poll_sensors(&baro, &baro_vel);
         poll_gps(&gps);
-
-        poll_barometer(&baro);
-        baro_update(baro, &agl, &vel, &avg_vel);
 
         cycle = (cycle + 1) % primary_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_primary);

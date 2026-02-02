@@ -23,6 +23,12 @@ typedef struct {
 } barometer_sample_t;
 
 typedef struct {
+    float altitude_agl;
+    float velocity;
+    float average_velocity;
+} barometer_velocity_t;
+
+typedef struct {
     int64_t timestamp;
     uint32_t UTCtstamp;
     uint32_t lat;
@@ -47,12 +53,21 @@ typedef struct {
     float gyr_z;
 } gyr_sample_t;
 
+typedef struct {
+    barometer_sample_t baro;
+    TaskHandle_t read_baro_task;
+} bmp_context_t;
+
 esp_err_t initialize_sensors(void);
 
-esp_err_t poll_barometer(barometer_sample_t *baro);
+void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel);
+
+void poll_baro(barometer_sample_t *pBaro);
+
+void barometer_int_callback(void *args);
 
 esp_err_t poll_gps(gps_sample_t *gps);
 
-void baro_update(barometer_sample_t baro, float *agl, float *vel, float *avg_vel);
+void baro_update(barometer_sample_t baro, barometer_velocity_t *pBaro_vel);
 
 #endif
