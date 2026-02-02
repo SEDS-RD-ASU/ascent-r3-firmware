@@ -145,6 +145,7 @@ void measure_performance() {
 }
 
 //MARK: PRIMARY TASK
+// Will be running at 100Hz
 TaskHandle_t primary_task_handle;
 int primary_loop_fq = 100;
 TickType_t xFrequency_primary;
@@ -155,20 +156,20 @@ void primary_task(void *pvParameters)
     TickType_t xLastWakeTime = xTaskGetTickCount();
     uint32_t cycle = 0;
 
-    barometer_sample_t baro;
-    gps_sample_t gps;
-
     while (1)
     {
-        float agl, vel, avg_vel;
+        // code must go here
+    }
+}
 
-        poll_gps(&gps);
-
-        poll_barometer(&baro);
-        baro_update(baro, &agl, &vel, &avg_vel);
-
-        cycle = (cycle + 1) % primary_loop_fq;
-        vTaskDelayUntil(&xLastWakeTime, xFrequency_primary);
+//MARK: SECONDARY TASK
+// Will be running as fast as possible
+TaskHandle_t secondary_task_handle;
+void secondary_task(void *pvParameters)
+{
+    while(1)
+    {
+        // code must go here   
     }
 }
 
@@ -188,11 +189,11 @@ void app_main(void)
         esp_restart();
     }
 
+    flight_config_init();
+    print_flight_config();
+
     // measure_performance();
 
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
-
-    flight_config_init();
-    print_flight_config();
 
 }

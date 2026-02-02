@@ -60,9 +60,6 @@ esp_err_t flash_flight_init(void)
 
     ret = w25qxx_init();
 
-    // not needed called by init boot sequence
-    // nvs_interface_init();
-
     my_handle = nvs_interface_get_handle();
 
     if (nvs_find_key(my_handle, "bank", NULL) != ESP_OK) {
