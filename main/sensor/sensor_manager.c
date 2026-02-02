@@ -20,6 +20,7 @@ esp_err_t initialize_sensors(void)
     esp_err_t ret;
     i2c_port_t BMP390_I2C_PORT = R3_I2C1_PORT;
     i2c_port_t SAM_M10Q_I2C_PORT = R3_I2C0_PORT;
+    spi_host_device_t LSM_SPI_HOST = SPI3_HOST;
 
     // Install ISR service
     ret = gpio_install_isr_service(0);
@@ -35,6 +36,9 @@ esp_err_t initialize_sensors(void)
     
     ret = GPS_init(SAM_M10Q_I2C_PORT);
     if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE SAM-M10Q"); return ret;}
+
+    ret = lsm_flight_init(LSM_SPI_HOST);
+    if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE LSM6DSV320X"); return ret;}
 
     ESP_LOGI(TAG, "SUCCESSFULLY INITIALIZED ALL SENSORS");
     return ESP_OK;

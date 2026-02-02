@@ -13,6 +13,7 @@
 
 #include "interface_bmp390l.h"
 #include "interface_sam_m10q.h"
+#include "interface_LSM6DSV320X.h"
 
 typedef struct {
     int64_t timestamp;

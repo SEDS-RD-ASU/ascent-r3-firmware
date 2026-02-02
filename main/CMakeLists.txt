@@ -15,6 +15,7 @@ idf_component_register(
         esp_psram
         indicator
         sam_m10q
+        lsm6dsv320x
         esp_timer
         esp_driver_gptimer
         uart
