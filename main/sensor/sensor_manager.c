@@ -11,9 +11,8 @@ static const char *TAG = "SENSOR MANAGER";
 static bool simulator = false; // simulating flight?
 
 static bmp_context_t bmp_ctx = {0};
-extern barometer_sample_t global_baro;
 
-extern float agl, vel, avg_vel;
+bool barometer_data_ready = false;
 
 // MARK: SENSOR INITIALIZATION
 esp_err_t initialize_sensors(void)
@@ -21,9 +20,14 @@ esp_err_t initialize_sensors(void)
     esp_err_t ret;
     i2c_port_t BMP390_I2C_PORT = R3_I2C1_PORT;
     i2c_port_t SAM_M10Q_I2C_PORT = R3_I2C0_PORT;
-    
-    memset(&bmp_ctx, 0, sizeof(bmp_context_t));
-    xTaskCreatePinnedToCore(read_baro, "read_baro_task", 4096, &bmp_ctx, 5, &bmp_ctx.read_baro_task, 1);
+
+    // Install ISR service
+    ret = gpio_install_isr_service(0);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to install ISR service");
+        return ret;
+    }
+
     ret = bmp390_flight_init(BMP390_I2C_PORT, barometer_int_callback, &bmp_ctx);
     if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE BMP390"); return ret;}
 
@@ -36,41 +40,34 @@ esp_err_t initialize_sensors(void)
     return ESP_OK;
 }
 
-
-void read_baro(void *args)
+void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel)
 {
-    bmp_context_t *ctx = (bmp_context_t *)args;
-    
-    while(1) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        
-        if(simulator) {
-            ;
-        }
-        else { 
-            baro_double_t bmp390_out;
-            bmp390_get_local(&bmp390_out);
-            ctx->baro.timestamp = esp_timer_get_time();
-            ctx->baro.pressure = bmp390_out.pressure;
-            ctx->baro.temperature = bmp390_out.temperature;
-            ctx->baro.altitude_agl = bmp390_out.alt;
-            ctx->baro.ground_altitude = bmp390_ground_altitude();
-            global_baro = ctx->baro; // update global baro sample
-            
-            baro_update(ctx->baro, &agl, &vel, &avg_vel);
-        }
+    if (barometer_data_ready) {
+        poll_baro(pBaro);
+        baro_update(*pBaro, pBaro_vel);
+    }
+}
+
+void poll_baro(barometer_sample_t *pBaro)
+{
+    if(simulator) {
+        ;
+    }
+    else { 
+        baro_double_t bmp390_out;
+        bmp390_get_local(&bmp390_out);
+        pBaro->timestamp = esp_timer_get_time();
+        pBaro->pressure = bmp390_out.pressure;
+        pBaro->temperature = bmp390_out.temperature;
+        pBaro->altitude_agl = bmp390_out.alt;
+        pBaro->ground_altitude = bmp390_ground_altitude();
     }
 }
 
 void barometer_int_callback(void *args)
 {
-    bmp_context_t *ctx = (bmp_context_t *)args;
-    
-    if (ctx != NULL && ctx->read_baro_task != NULL) {
-        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-        vTaskNotifyGiveFromISR(ctx->read_baro_task, &xHigherPriorityTaskWoken);
-        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-    }
+    barometer_data_ready = true;
+    portYIELD_FROM_ISR();
 }
 
 esp_err_t poll_gps(gps_sample_t *gps)
@@ -103,7 +100,7 @@ static float barometric_agl;
 static float barometric_velocity;
 static float average_barometric_velocity;
 
-void baro_update(barometer_sample_t baro, float *agl, float *vel, float *avg_vel)
+void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel)
 {
     static float agl_history[HISTORY_SIZE] = {0};  // Store the last 5 AGL readings
 
@@ -139,7 +136,7 @@ void baro_update(barometer_sample_t baro, float *agl, float *vel, float *avg_vel
 
     // printf("AGL: %f, Pressure: %f, Velocity: %f\n", agl_history[0], baro.pressure, barometric_velocity);
 
-    *agl = barometric_agl;
-    *vel = barometric_velocity;
-    *avg_vel = average_barometric_velocity;
+    baro_vel->altitude_agl = barometric_agl;
+    baro_vel->velocity = barometric_velocity;
+    baro_vel->average_velocity = average_barometric_velocity;
 }

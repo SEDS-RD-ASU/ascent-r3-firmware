@@ -120,6 +120,7 @@ void measure_performance() {
 
 
     barometer_sample_t baro;
+    barometer_velocity_t baro_vel;
 
     gps_sample_t gps;
 
@@ -130,7 +131,8 @@ void measure_performance() {
     gptimer_get_raw_count(gptimer, &times);
     
     for (int retries = 0; retries < MEASUREMENTS; retries++) {
-        poll_gps(&gps);
+        //poll_gps(&gps);
+        poll_sensors(&baro, &baro_vel);
     }
 
     gptimer_get_raw_count(gptimer, &timef);
@@ -154,8 +156,12 @@ void primary_task(void *pvParameters)
 
     gps_sample_t gps;
 
+    barometer_sample_t baro;
+    barometer_velocity_t baro_vel;
+
     while (1)
     {
+        poll_sensors(&baro, &baro_vel);
         poll_gps(&gps);
 
         cycle = (cycle + 1) % primary_loop_fq;
