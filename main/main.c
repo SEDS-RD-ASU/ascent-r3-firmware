@@ -28,6 +28,7 @@
 #include "sensor_manager.h"
 #include "flash_interface.h"
 #include "nvs_interface.h"
+#include "flash_interface.h"
 
 //FLIGHT STATE MANAGEMENT
 #include "flight.h"
@@ -89,9 +90,6 @@ esp_err_t flight_initialize_devices(void){
     
     ret = flash_flight_init();
     if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
-
-    ret = nvs_interface_init();
-    if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE NVS INTERFACE"); return ret;}
 
     print_board_info();
     led_green();

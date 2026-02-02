@@ -86,14 +86,14 @@ void print_board_info(){
 
     #ifdef PROVISION
     board_information_t provisioned_info = {
-        .model = 2,
+        .model = 3,
         .hw_rev = 1,
         .fw_rev = 1,
-        .serial_number = 99,
+        .serial_number = 1,
         .passed_hw_validation = 99,
-        .manufacture_day = 99,
-        .manufacture_month = 99,
-        .manufacture_year = 99
+        .manufacture_day = 13,
+        .manufacture_month = 1,
+        .manufacture_year = 26
     };
     nvs_set_board_info(&provisioned_info);
     #endif
