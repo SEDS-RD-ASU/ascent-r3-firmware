@@ -27,7 +27,7 @@ static const char *TAG = "FLASH INTERFACE";
 #define MAX_SECTORS 16384
 #define SECTOR_SIZE 4096
 
-#define BANKS 8
+#define BANKS 4
 #define BANK_SIZE (MAX_SECTORS * SECTOR_SIZE / BANKS)
 #define SECTORS_IN_BANK (MAX_SECTORS / BANKS)
 
@@ -42,10 +42,6 @@ static const char* bank_keys[BANKS] = {
     "bank_1",
     "bank_2",
     "bank_3",
-    "bank_4",
-    "bank_5",
-    "bank_6",
-    "bank_7",
 };
 
 #define RING_BUFFER_SIZE 50
@@ -188,7 +184,7 @@ static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t *resume) {
     }
 }
 
-#ifndef NEW_FLASH_DUMP
+
 void flash_dump_to_serial(int bank) {
     flash_packet fp;
 
@@ -196,7 +192,7 @@ void flash_dump_to_serial(int bank) {
     vTaskDelay(5000 / portTICK_PERIOD_MS);
 
     addr = BANK_SIZE*bank;
-    printf("n, timestamp, pyro_arm, flight_state, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z, mag_x, mag_y, mag_z, high_g_acc_x, high_g_acc_y, high_g_acc_z, baro_alt, baro_pressure, baro_temperature, barometric_agl, barometric_velocity, average_barometric_velocity, yaw, pitch, roll, lat, long, gps_alt, volt\n");
+    printf("n, timestamp, bat_voltage, flight_sate, pyro_cont, pressure, temperature, altitude_agl, ground_altitude, UTCtstamp, lat, lon, altitude_ellipsoid, altitude_msl, fixType, num_sats, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z\n");
     while (addr < MAX_SECTORS*SECTOR_SIZE && addr < BANK_SIZE*bank + BANK_SIZE) {
         w25qxx_read(addr, (uint8_t*)&fp, sizeof(flash_packet));
         addr += sizeof(flash_packet);
@@ -208,156 +204,36 @@ void flash_dump_to_serial(int bank) {
         }
         if (all) break;
 
-        // printf("%lu,", fp.n);
-        // printf("%"PRId64",", fp.timestamp);
-        // printf("%d,", fp.pyro_arm);
-        // printf("%d,", fp.flight_state);
+        printf("%llu,", fp.n);
+        printf("%"PRId64",", fp.timestamp);
+        printf("%f,", fp.bat_voltage);
+        printf("%d,", fp.flight_state);
+        printf("%d,", fp.pyro_cont);
 
-        // printf("%f,", fp.acc.x);
-        // printf("%f,", fp.acc.y);
-        // printf("%f,", fp.acc.z);
+        printf("%f,", fp.pressure);
+        printf("%f,", fp.temperature);
+        printf("%f,", fp.altitude_agl);
+        printf("%f,", fp.ground_altitude);
 
-        // printf("%f,", fp.gyr.x);
-        // printf("%f,", fp.gyr.y);
-        // printf("%f,", fp.gyr.z);
+        printf("%lu,", fp.UTCtstamp);
+        printf("%lu,", fp.lat);
+        printf("%lu,", fp.lon);
+        printf("%lu,", fp.altitude_ellipsoid);
+        printf("%lu,", fp.altitude_msl);
+        printf("%d,", fp.fixType);
+        printf("%d,", fp.num_sats);
 
-        // printf("%f,", fp.mag.x);
-        // printf("%f,", fp.mag.y);
-        // printf("%f,", fp.mag.z);
+        printf("%f,", fp.acc_x);
+        printf("%f,", fp.acc_y);
+        printf("%f,", fp.acc_z);
 
-        // printf("%f,", fp.high_g_acc.x);
-        // printf("%f,", fp.high_g_acc.y);
-        // printf("%f,", fp.high_g_acc.z);
+        printf("%f,", fp.hacc_x);
+        printf("%f,", fp.hacc_y);
+        printf("%f,", fp.hacc_z);
 
-        // printf("%f,", fp.baro.alt);
-        // printf("%f,", fp.baro.pressure);
-        // printf("%f,", fp.baro.temperature);
-
-        // printf("%f,", fp.barometric_agl);
-        // printf("%f,", fp.barometric_velocity);
-        // printf("%f,", fp.average_barometric_velocity);
-
-        // printf("%f,", fp.orientation.roll);
-        // printf("%f,", fp.orientation.pitch);
-        // printf("%f,", fp.orientation.yaw);
-        // printf("%f,", fp.orientation.qw);
-        // printf("%f,", fp.orientation.qx);
-        // printf("%f,", fp.orientation.qy);
-        // printf("%f,", fp.orientation.qz);
-
-        // printf("%f,", fp.latitude);
-        // printf("%f,", fp.longitude);
-        // printf("%lu,", fp.gps_altitude);
-
-        // printf("%f,", fp.bat_voltage);
-
-        // printf("\n");
-    }
-
-    flash_erase_jingle();
-
-    printf("FINISHED DUMPING DATA\n");
-}
-
-#else
-void flash_dump_to_serial(int bank) {
-    flash_packet fp;
-
-    printf("DUMPING DATA FROM BANK: %d\n", bank);
-    vTaskDelay(5000 / portTICK_PERIOD_MS);
-
-    addr = BANK_SIZE*bank;
-    printf("n, timestamp, pyro_arm, flight_state, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z, mag_x, mag_y, mag_z, high_g_acc_x, high_g_acc_y, high_g_acc_z, baro_alt, baro_pressure, baro_temperature, barometric_agl, barometric_velocity, average_barometric_velocity, yaw, pitch, roll, lat, long, gps_alt, volt\n");
-    
-    unsigned char* bytes_ptr = NULL;
-
-    while (addr < MAX_SECTORS*SECTOR_SIZE && addr < BANK_SIZE*bank + BANK_SIZE) {
-        w25qxx_read(addr, (uint8_t*)&fp, sizeof(flash_packet));
-        addr += sizeof(flash_packet);
-
-        bool all = true;
-        char* buf = (char*) &fp;
-        for (int i = 0; i < sizeof(flash_packet); i++) {
-            if (buf[i] != 0xFF) all=false;
-        }
-        if (all) break;
-
-        bytes_ptr = (unsigned char*)&fp.n;
-        printf("%02X %02X %02X %02X,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.timestamp;
-        printf("%02X %02x %02x %02x %02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3], bytes_ptr[4], bytes_ptr[5], bytes_ptr[6], bytes_ptr[7]);
-        bytes_ptr = (unsigned char*)&fp.pyro_arm;
-        printf("%02X,", bytes_ptr[0]);
-        bytes_ptr = (unsigned char*)&fp.flight_state;
-        printf("%02X,", bytes_ptr[0]);
-        
-        bytes_ptr = (unsigned char*)&fp.acc.x;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.acc.y;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.acc.z;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-
-        bytes_ptr = (unsigned char*)&fp.gyr.x;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.gyr.y;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.gyr.z;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-
-        bytes_ptr = (unsigned char*)&fp.mag.x;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.mag.y;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.mag.z;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-
-        bytes_ptr = (unsigned char*)&fp.high_g_acc.x;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.high_g_acc.y;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.high_g_acc.z;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-
-        bytes_ptr = (unsigned char*)&fp.baro.alt;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.baro.pressure;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.baro.temperature;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-
-        bytes_ptr = (unsigned char*)&fp.barometric_agl;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.barometric_velocity;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.average_barometric_velocity;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-
-        bytes_ptr = (unsigned char*)&fp.orientation.roll;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.orientation.pitch;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.orientation.yaw;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.orientation.qw;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.orientation.qx;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.orientation.qy;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.orientation.qz;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-
-        bytes_ptr = (unsigned char*)&fp.latitude;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-        bytes_ptr = (unsigned char*)&fp.longitude;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-
-        bytes_ptr = (unsigned char*)&fp.gps_altitude;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
-
-        bytes_ptr = (unsigned char*)&fp.bat_voltage;
-        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        printf("%f,", fp.gyr_x);
+        printf("%f,", fp.gyr_y);
+        printf("%f", fp.gyr_z);
 
         printf("\n");
     }
@@ -366,7 +242,6 @@ void flash_dump_to_serial(int bank) {
 
     printf("FINISHED DUMPING DATA\n");
 }
-#endif
 
 void flash_write_packet(flash_packet *packet) {
     if (addr >= current_bank*BANK_SIZE + BANK_SIZE) {
@@ -467,28 +342,4 @@ void flash_erase_jingle(void) {
     note(NOTE_D, 7, 120);
     note(NOTE_B, 6, 250);
     note(NOTE_E, 7, 400);
-}
-
-void print_flash_packet(flash_packet *fp) {
-    // printf("fp:\t");
-    // printf("n: %"PRId32"\t", fp->n);
-    // printf("ts: %"PRId64"\t", fp->timestamp);
-    // printf("pa: %d%d%d%d\t", (fp->pyro_arm >> 3) & 1,(fp->pyro_arm >> 2) & 1,(fp->pyro_arm >> 1) & 1,(fp->pyro_arm >> 0) & 1);
-    // printf("fs: %d\t", fp->flight_state);
-    // printf("acc: %f.2, %f.2, %f.2\t", fp->acc.x, fp->acc.y, fp->acc.z);
-    // printf("gyr: %f.2, %f.2, %f.2\t", fp->gyr.x, fp->gyr.y, fp->gyr.z);
-    // printf("mag: %f.2, %f.2, %f.2\t", fp->mag.x, fp->mag.y, fp->mag.z);
-    // printf("high_g: %f.2, %f.2, %f.2\t", fp->high_g_acc.x, fp->high_g_acc.y, fp->high_g_acc.z);
-    // printf("baro: %f.2, %f.2, %f.2\t", fp->baro.alt, fp->baro.pressure, fp->baro.temperature);
-    // printf("agl: %f.2\t", fp->barometric_agl);
-    // printf("vel: %f.2\t", fp->barometric_velocity);
-    // printf("avg_vel: %f.2\t", fp->average_barometric_velocity);
-    // printf("yaw: %f.2\t", fp->orientation.yaw);
-    // printf("pitch: %f.2\t", fp->orientation.pitch);
-    // printf("roll: %f.2\t", fp->orientation.roll);
-    // printf("lat: %f\t", fp->latitude);
-    // printf("long: %f\t", fp->longitude);
-    // printf("gps_alt: %lu\t", fp->gps_altitude);
-    // printf("volt: %f.2\t", fp->bat_voltage);
-    // printf("\n");
 }

@@ -31,6 +31,11 @@ typedef struct {
     float acc_y;
     float acc_z;
 
+    //acc_sample_t
+    float hacc_x;
+    float hacc_y;
+    float hacc_z;
+
     //gyr_sample_t
     float gyr_x;
     float gyr_y;
