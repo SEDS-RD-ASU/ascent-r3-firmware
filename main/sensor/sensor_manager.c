@@ -123,7 +123,7 @@ static float barometric_agl;
 static float barometric_velocity;
 static float average_barometric_velocity;
 
-static void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel)
+void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel)
 {
     static float agl_history[HISTORY_SIZE] = {0};  // Store the last 5 AGL readings
 
@@ -168,12 +168,12 @@ void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel, ac
 {
     if (barometer_data_ready) {
         poll_baro(pBaro);
-        baro_update(*pBaro, pBaro_vel);
+        barometer_data_ready = false;
     }
     if (imu_data_ready){
         poll_imu(high_g, low_g, gyr);
     }
     if (gps_data_ready){
-        poll_gps(gps);
+        // poll_gps(gps);
     }
 }
