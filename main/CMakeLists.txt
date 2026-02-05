@@ -9,12 +9,13 @@ idf_component_register(
         "ble/ble.c"
         "ble/gatt_svr.c"
         "ble/misc.c"
-        "command/command.h"
+        "command/command.c"
     REQUIRES
         spi_flash
         bmp390l
         w25qxx
         nvs_flash
+        goober
         pyro
         esp_psram
         indicator
@@ -27,6 +28,7 @@ idf_component_register(
         bt
         psu
         adc
+        goober
     INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
         "memory"

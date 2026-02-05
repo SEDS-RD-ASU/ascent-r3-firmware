@@ -19,6 +19,7 @@
 
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include <stdio.h>
 /* BLE */
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
@@ -248,7 +249,7 @@ void bleprph_host_task(void *param)
     nimble_port_freertos_deinit();
 }
 
-void ble_init(void)
+void ble_init(uint8_t serial_number)
 {
     int rc;
     esp_err_t ret;
@@ -267,7 +268,9 @@ void ble_init(void)
     assert(rc == 0);
 
     /* Set the default device name. */
-    rc = ble_svc_gap_device_name_set("ASCENT R3 SN00X");
+    char device_name[32];
+    snprintf(device_name, sizeof(device_name), "ASCENT R3 SN%u", serial_number);
+    rc = ble_svc_gap_device_name_set(device_name);
     assert(rc == 0);
 
     nimble_port_freertos_init(bleprph_host_task);

@@ -32,6 +32,7 @@
 #include "flash_interface.h"
 #include "driver_psu.h"
 #include "serial_util.h"
+#include "ble.h"
 
 //FLIGHT STATE MANAGEMENT
 #include "flight.h"
@@ -116,6 +117,7 @@ void validate_esp(void)
 esp_err_t flight_initialize_devices(void)
 {
     esp_err_t ret = ESP_OK;
+    board_information_t board_info;
 
     ret = buzzer_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE BUZZER"); return ret;}
@@ -144,6 +146,9 @@ esp_err_t flight_initialize_devices(void)
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SENSORS"); return ret;}
 
     serial_util_init();
+
+    nvs_retrieve_board_info(&board_info);
+    ble_init(board_info.serial_number);
     
     ret = flash_flight_init();
     if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
@@ -344,16 +349,18 @@ void app_main(void)
     
     esp_err_t ret;
 
-    ret = esp_task_wdt_deinit();
+    ret = flight_initialize_devices();
     if (ret) {
-        printf("FAILED TO DEINIT TASK WATCH DOG\n");
+        ESP_LOGE("app_main", "DEVICE INITIALIZATION HAS FAILED!");
+        error_beep();
+        led_red();
         vTaskDelay(pdMS_TO_TICKS(1000));
         esp_restart();
     }
 
-    ret = flight_initialize_devices();
+    ret = esp_task_wdt_deinit();
     if (ret) {
-        ESP_LOGE("app_main", "DEVICE INITIALIZATION HAS FAILED!");
+        printf("FAILED TO DEINIT TASK WATCH DOG\n");
         error_beep();
         led_red();
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -365,7 +372,6 @@ void app_main(void)
 
     flash_print_stats();
     try_to_dump_data();
-    flash_prepare_for_flight();
 
     // measure_performance();
 

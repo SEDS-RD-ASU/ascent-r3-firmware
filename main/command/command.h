@@ -31,7 +31,7 @@ enum ascent_message_classes_t {
     TELEMETRY
 };
 
-esp_err_t process_command(uint16_t msg_class);
+esp_err_t process_command(uint8_t msg_class);
 
 bool is_tx_lock();
 

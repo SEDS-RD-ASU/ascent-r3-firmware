@@ -62,7 +62,7 @@ esp_err_t nvs_set_flight_config(flight_config_t *flight_config){
     return nvs_set_blob(my_handle, "flight_config", flight_config, sizeof(flight_config_t));
 }
 
-esp_err_t nvs_retreive_board_info(board_information_t *board_info){
+esp_err_t nvs_retrieve_board_info(board_information_t *board_info){
     nvs_handle_t my_handle = nvs_interface_get_handle();
     size_t length = sizeof(board_information_t);
     esp_err_t err = nvs_get_blob(my_handle, "board_info", board_info, &length);
@@ -89,16 +89,16 @@ void print_board_info(){
         .model = 3,
         .hw_rev = 1,
         .fw_rev = 1,
-        .serial_number = 1,
+        .serial_number = 2,
         .passed_hw_validation = 99,
-        .manufacture_day = 13,
+        .manufacture_day = 19,
         .manufacture_month = 1,
         .manufacture_year = 26
     };
     nvs_set_board_info(&provisioned_info);
     #endif
 
-    esp_err_t err = nvs_retreive_board_info(&board_info);
+    esp_err_t err = nvs_retrieve_board_info(&board_info);
 
     if (err != ESP_OK) {
         printf("Failed to retrieve board_info for printing\n");

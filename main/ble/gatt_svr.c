@@ -26,6 +26,8 @@
 #include "services/gatt/ble_svc_gatt.h"
 #include "bleprph.h"
 #include "ble.h"
+#include "goober.h"
+#include "command.h"
 
 static const ble_uuid16_t gatt_svr_svc_uuid =
     BLE_UUID16_INIT(0x0000);
@@ -215,10 +217,12 @@ static int gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
             }
             
             printf("Received BLE packet: ");
-                for(int i = 0; i < len; i++) {
-                    printf("0x%02X ", rx_buffer[i]);
-                }
-                printf("\n");
+            for(int i = 0; i < len; i++) {
+                printf("0x%02X ", rx_buffer[i]);
+            }
+            printf("\n");
+
+            process_command(rx_buffer[0]);
             
             return 0;
         }
