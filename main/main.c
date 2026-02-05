@@ -31,6 +31,7 @@
 #include "nvs_interface.h"
 #include "flash_interface.h"
 #include "driver_psu.h"
+#include "serial_util.h"
 
 //FLIGHT STATE MANAGEMENT
 #include "flight.h"
@@ -141,6 +142,8 @@ esp_err_t flight_initialize_devices(void)
 
     ret = initialize_sensors();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SENSORS"); return ret;}
+
+    serial_util_init();
     
     ret = flash_flight_init();
     if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
@@ -218,8 +221,6 @@ void primary_task(void *pvParameters)
             primary_gps.fixType,
             primary_gps.num_sats);
         #endif
-
-        printf("%.3f\n", primary_high_g_acc.acc_y);
 
         if (flight_state > FS_ON_PAD && flight_state != FS_LANDED) // if we are in the air, basically
         {
@@ -361,8 +362,10 @@ void app_main(void)
 
     flight_config_init();
     print_flight_config();
+
     flash_print_stats();
     try_to_dump_data();
+    flash_prepare_for_flight();
 
     // measure_performance();
 

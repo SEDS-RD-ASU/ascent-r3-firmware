@@ -189,7 +189,7 @@ void flash_dump_to_serial(int bank) {
     vTaskDelay(5000 / portTICK_PERIOD_MS);
 
     addr = BANK_SIZE*bank;
-    printf("n, timestamp, bat_voltage, flight_sate, pyro_cont, pressure, temperature, altitude_agl, ground_altitude, UTCtstamp, lat, lon, altitude_ellipsoid, altitude_msl, fixType, num_sats, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z\n");
+    printf("n, timestamp, bat_voltage, flight_state, pyro_cont, pressure, temperature, altitude_agl, ground_altitude, UTCtstamp, lat, lon, altitude_ellipsoid, altitude_msl, fixType, num_sats, acc_x, acc_y, acc_z, hacc_x, hacc_y, hacc_z, gyr_x, gyr_y, gyr_z\n");
     while (addr < MAX_SECTORS*SECTOR_SIZE && addr < BANK_SIZE*bank + BANK_SIZE) {
         w25qxx_read(addr, (uint8_t*)&fp, sizeof(flash_packet));
         addr += sizeof(flash_packet);
