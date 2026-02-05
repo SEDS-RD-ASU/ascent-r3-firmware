@@ -6,6 +6,10 @@ idf_component_register(
         "memory/serial_util.c"
         "fsm/flight.c"
         "sensor/sensor_manager.c"
+        "ble/ble.c"
+        "ble/gatt_svr.c"
+        "ble/misc.c"
+        "command/command.h"
     REQUIRES
         spi_flash
         bmp390l
@@ -20,6 +24,7 @@ idf_component_register(
         esp_driver_gptimer
         uart
         spi
+        bt
         psu
         adc
     INCLUDE_DIRS
@@ -27,4 +32,6 @@ idf_component_register(
         "memory"
         "fsm"
         "sensor"
+        "ble"
+        "command"
 )
