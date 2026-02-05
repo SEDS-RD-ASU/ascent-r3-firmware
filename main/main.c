@@ -19,7 +19,7 @@
 #include "esp_log.h"
 #include "driver/gptimer.h"
 
-//R3 DEVICE INTERFACES
+//MARK: R3 DEVICE INTERFACES
 #include "ascent_r3_hardware_definition.h"
 #include "driver_buzzer.h"
 #include "beep.h"
@@ -45,7 +45,44 @@ _Atomic acc_sample_t high_g_acc;
 _Atomic gyr_sample_t gyr;
 _Atomic gps_sample_t gps;
 
-//MARK: INITIALIZATION CODE
+//MARK: TESTING UTILITIES
+void measure_performance()
+{
+    uint64_t times = 0;
+    uint64_t timef = 0;
+    double pres = 0;
+
+    gptimer_handle_t gptimer = NULL;
+    gptimer_config_t timer_config = {
+        .clk_src = GPTIMER_CLK_SRC_XTAL,
+        .direction = GPTIMER_COUNT_UP,
+        .resolution_hz = 20 * 1000 * 1000
+    };
+    // Create a timer instance
+    ESP_ERROR_CHECK(gptimer_new_timer(&timer_config, &gptimer));
+    // Enable the timer
+    ESP_ERROR_CHECK(gptimer_enable(gptimer));
+    // Start the timer
+    ESP_ERROR_CHECK(gptimer_start(gptimer));
+
+    esp_err_t ret;
+
+    const unsigned MEASUREMENTS = 1000;
+
+    gptimer_get_raw_count(gptimer, &times);
+    
+    for (int retries = 0; retries < MEASUREMENTS; retries++) {
+        // replace w/ function to measure!
+    }
+
+    gptimer_get_raw_count(gptimer, &timef);
+
+    printf("%u iterations took %llu ticks (%llu ticks per measurement)\n",
+        MEASUREMENTS, (timef - times), (timef - times)/MEASUREMENTS);
+
+    megolavania();
+}
+
 void validate_esp(void)
 {
     /* Print chip information */
@@ -74,6 +111,7 @@ void validate_esp(void)
     printf("Minimum free heap size: %" PRIu32 " bytes\n", esp_get_minimum_free_heap_size());
 }
 
+//MARK: INITIALIZATION CODE
 esp_err_t flight_initialize_devices(void)
 {
     esp_err_t ret = ESP_OK;
@@ -113,43 +151,6 @@ esp_err_t flight_initialize_devices(void)
     printf("\n\n");
 
     return ESP_OK;
-}
-
-void measure_performance()
-{
-    uint64_t times = 0;
-    uint64_t timef = 0;
-    double pres = 0;
-
-    gptimer_handle_t gptimer = NULL;
-    gptimer_config_t timer_config = {
-        .clk_src = GPTIMER_CLK_SRC_XTAL,
-        .direction = GPTIMER_COUNT_UP,
-        .resolution_hz = 20 * 1000 * 1000
-    };
-    // Create a timer instance
-    ESP_ERROR_CHECK(gptimer_new_timer(&timer_config, &gptimer));
-    // Enable the timer
-    ESP_ERROR_CHECK(gptimer_enable(gptimer));
-    // Start the timer
-    ESP_ERROR_CHECK(gptimer_start(gptimer));
-
-    esp_err_t ret;
-
-    const unsigned MEASUREMENTS = 1000;
-
-    gptimer_get_raw_count(gptimer, &times);
-    
-    for (int retries = 0; retries < MEASUREMENTS; retries++) {
-        // replace w/ function to measure!
-    }
-
-    gptimer_get_raw_count(gptimer, &timef);
-
-    printf("%u iterations took %llu ticks (%llu ticks per measurement)\n",
-        MEASUREMENTS, (timef - times), (timef - times)/MEASUREMENTS);
-
-    megolavania();
 }
 
 //MARK: PRIMARY TASK
