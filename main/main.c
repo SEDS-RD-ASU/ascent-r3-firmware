@@ -1,6 +1,5 @@
 /**
  * @file main.c
- * @author Abdul Zia
  * @brief Entry point for ASCENT R3 firmware
  */
 

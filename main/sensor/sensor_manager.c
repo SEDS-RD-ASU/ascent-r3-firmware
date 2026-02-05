@@ -1,6 +1,5 @@
 /**
  * @file sensor_manager.c
- * @author Abdul Zia
  * @brief Code responssible for processing sensor data during flight.
  */
 
