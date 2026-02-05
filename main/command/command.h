@@ -28,8 +28,11 @@ enum ascent_message_classes_t {
     EDIT_RADIO,
     SIMULATOR_ON,
     VOLTAGE,
-    TELEMETRY
+    TELEMETRY,
+    ERASE_FLASH
 };
+
+esp_err_t enable_txlock(void);
 
 esp_err_t process_command(uint8_t msg_class);
 

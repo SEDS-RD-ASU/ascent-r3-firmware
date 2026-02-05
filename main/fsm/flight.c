@@ -7,6 +7,7 @@
 #include "flight_config.h"
 #include "driver_pyro.h"
 #include "nvs_interface.h"
+#include "command.h"
 
 // static uint8_t flight_state = FS_PREFLIGHT;
 static uint8_t flight_state = FS_ON_PAD;
@@ -118,10 +119,10 @@ bool flight_update(
 
             if (count1 >= cfg.lift_off_tick_count) {
                 flight_state = FS_BOOSTER;
-                // if(!is_tx_lock()) {
-                    // activate_txlock();
-                    // printf("Activated txlock from FSM\n");
-                // }
+                if(!is_tx_lock()) {
+                    enable_txlock();
+                    printf("Activated txlock from FSM\n");
+                }
             // } else if (!should_wake_up() && count1 == 0) {
             //     flight_state = FS_PREFLIGHT;
             }

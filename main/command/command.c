@@ -9,7 +9,7 @@ _Atomic bool TXLOCK = false;
 
 static uint8_t command_packet_buf[250];
 
-static esp_err_t enable_txlock(void)
+esp_err_t enable_txlock(void)
 {
     int ret;
 
@@ -95,6 +95,9 @@ esp_err_t process_command(uint8_t msg_class)
         }
         case(TELEMETRY): {
             break;
+        }
+        case(ERASE_FLASH): {
+            flash_blank_slate();
         }
         default: {
             return ESP_ERR_INVALID_ARG;
