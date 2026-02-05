@@ -3,6 +3,7 @@
 #include "nvs_interface.h"
 #include "flash_interface.h"
 #include "ble.h"
+#include "onboard_led.h"
 
 _Atomic bool TXLOCK = false;
 
@@ -12,11 +13,15 @@ static esp_err_t enable_txlock(void)
 {
     int ret;
 
+    led_purple();
+
     ret = flash_prepare_for_flight();
 
     ble_stop();
 
     if (!ret) return ESP_FAIL;
+
+    led_green();
 
     return ESP_OK;
 }

@@ -154,7 +154,7 @@ esp_err_t flight_initialize_devices(void)
     if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
 
     print_board_info();
-    led_green();
+    led_yellow();
     high_beep();high_beep();high_beep(); // success!
 
     printf("\n\n");
@@ -349,18 +349,18 @@ void app_main(void)
     
     esp_err_t ret;
 
-    ret = flight_initialize_devices();
+    ret = esp_task_wdt_deinit();
     if (ret) {
-        ESP_LOGE("app_main", "DEVICE INITIALIZATION HAS FAILED!");
+        printf("FAILED TO DEINIT TASK WATCH DOG\n");
         error_beep();
         led_red();
         vTaskDelay(pdMS_TO_TICKS(1000));
         esp_restart();
     }
 
-    ret = esp_task_wdt_deinit();
+    ret = flight_initialize_devices();
     if (ret) {
-        printf("FAILED TO DEINIT TASK WATCH DOG\n");
+        ESP_LOGE("app_main", "DEVICE INITIALIZATION HAS FAILED!");
         error_beep();
         led_red();
         vTaskDelay(pdMS_TO_TICKS(1000));
