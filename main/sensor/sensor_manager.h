@@ -65,4 +65,8 @@ void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel, ac
 
 void barometer_int_callback(void *args);
 
+void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel);
+
+esp_err_t poll_gps(gps_sample_t *gps);
+
 #endif

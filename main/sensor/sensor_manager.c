@@ -68,7 +68,7 @@ void barometer_int_callback(void *args)
     portYIELD_FROM_ISR();
 }
 
-static esp_err_t poll_gps(gps_sample_t *gps)
+esp_err_t poll_gps(gps_sample_t *gps)
 {
     if(simulator) {
         ;
