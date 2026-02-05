@@ -30,6 +30,7 @@
 #include "flash_interface.h"
 #include "nvs_interface.h"
 #include "flash_interface.h"
+#include "driver_psu.h"
 
 //FLIGHT STATE MANAGEMENT
 #include "flight.h"
@@ -123,6 +124,9 @@ esp_err_t flight_initialize_devices(void)
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE LED"); return ret;}
     led_blue(); // let there be light
 
+    ret = psu_init_default();
+    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE PSU"); return ret;}
+
     ret = nvs_interface_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE NVS"); return ret;}
 
@@ -215,6 +219,8 @@ void primary_task(void *pvParameters)
             primary_gps.num_sats);
         #endif
 
+        printf("%.3f\n", primary_high_g_acc.acc_y);
+
         if (flight_state > FS_ON_PAD && flight_state != FS_LANDED) // if we are in the air, basically
         {
             printf("I am flying!!!\n");
@@ -222,7 +228,42 @@ void primary_task(void *pvParameters)
             // Do something while not flying
         }
 
+        flash_packet primary_flash_packet = {
+            .n = 0,
+            .timestamp = esp_timer_get_time(),
+            .bat_voltage = psu_read_battery_voltage(),
+            .flight_state = flight_state,
+            .pyro_cont = 0, // TODO: REPLACE WITH ACTUAL PYRO LOGIC. FOR DAQ WE DON'T CARE RN.
+            
+            .pressure = primary_baro.pressure,
+            .temperature = primary_baro.temperature,
+            .altitude_agl = primary_baro.altitude_agl,
+            .ground_altitude = primary_baro.ground_altitude,
+
+            .UTCtstamp = primary_gps.UTCtstamp,
+            .lat = primary_gps.lat,
+            .lon = primary_gps.lon,
+            .altitude_ellipsoid = primary_gps.altitude_ellipsoid,
+            .altitude_msl = primary_gps.altitude_msl,
+            .fixType = primary_gps.fixType,
+            .num_sats = primary_gps.num_sats,
+
+            .acc_x = primary_low_g_acc.acc_x,
+            .acc_y = primary_low_g_acc.acc_y,
+            .acc_z = primary_low_g_acc.acc_z,
+
+            .hacc_x = primary_high_g_acc.acc_x,
+            .hacc_y = primary_high_g_acc.acc_y,
+            .hacc_z = primary_high_g_acc.acc_z,
+
+            .gyr_x = primary_gyr.gyr_x,
+            .gyr_y = primary_gyr.gyr_y,
+            .gyr_z = primary_gyr.gyr_z,
+        };
+
         flight_update(primary_baro.altitude_agl, primary_baro_vel.velocity, primary_baro_vel.average_velocity, primary_high_g_acc.acc_y);
+
+        flash_queue_packet(&primary_flash_packet);
 
         cycle = (cycle + 1) % primary_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_primary);
@@ -278,6 +319,23 @@ void slow_sensor_task(void *pvParameters)
     }
 }
 
+//MARK: FLASH TASK
+// Operates as fast as possible on core 1
+TaskHandle_t flash_task_handle;
+void flash_task(void *pvParameters)
+{
+    while(1)
+    {
+        uint8_t flight_state = get_flight_state();
+
+        if (flight_state > FS_ON_PAD && flight_state != FS_LANDED) {
+            flash_write_queue(12500);
+        }
+
+        taskYIELD();
+    }
+}
+
 //MARK: ENTRY POINT
 void app_main(void)
 {
@@ -303,11 +361,14 @@ void app_main(void)
 
     flight_config_init();
     print_flight_config();
+    flash_print_stats();
+    try_to_dump_data();
 
     // measure_performance();
 
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
-    xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 1, &fast_sensor_task_handle, 1);
-    xTaskCreatePinnedToCore(slow_sensor_task, "slow_sensor_task", 8192, NULL, 1, &slow_sensor_task_handle, 1);
+    xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2, &fast_sensor_task_handle, 1);
+    xTaskCreatePinnedToCore(slow_sensor_task, "slow_sensor_task", 8192, NULL, 2, &slow_sensor_task_handle, 1);
+    xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 1, &flash_task_handle, 1);
 
 }
