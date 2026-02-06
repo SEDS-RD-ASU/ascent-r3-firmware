@@ -42,7 +42,8 @@ esp_err_t process_command(uint8_t msg_class)
             break;
         }
         case(REBOOT): {
-            break;
+            esp_restart();
+            break; // this would never be reached...
         }
         case(PYRO1): {
             break;
@@ -98,6 +99,7 @@ esp_err_t process_command(uint8_t msg_class)
         }
         case(ERASE_FLASH): {
             flash_blank_slate();
+            break;
         }
         default: {
             return ESP_ERR_INVALID_ARG;
