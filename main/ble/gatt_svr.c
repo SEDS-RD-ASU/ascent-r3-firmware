@@ -28,6 +28,7 @@
 #include "ble.h"
 #include "goober.h"
 #include "command.h"
+#include "driver_psu.h"
 
 static const ble_uuid16_t gatt_svr_svc_uuid =
     BLE_UUID16_INIT(0x0000);
@@ -182,11 +183,12 @@ static int gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
         if (attr_handle == gatt_svr_chr_val_handle) {
             
             // Append the serialized data to the output mbuf
-            // rc = os_mbuf_append(ctxt->om, serialized_packet, serialized_buffer_length);
-            // if (rc != 0) {
-            //     MODLOG_DFLT(ERROR, "Failed to append data to mbuf; rc=%d\n", rc);
-            //     return BLE_ATT_ERR_UNLIKELY;
-            // }
+            uint8_t voltage = 25*(uint8_t)(psu_read_battery_voltage());
+            rc = os_mbuf_append(ctxt->om, &voltage, 1);
+            if (rc != 0) {
+                MODLOG_DFLT(ERROR, "Failed to append data to mbuf; rc=%d\n", rc);
+                return BLE_ATT_ERR_UNLIKELY;
+            }
             
             // Removed logging here to prevent UART blocking during BLE operations
             // MODLOG_DFLT(INFO, "Sending goober packet response (size=%d)\n", serialized_buffer_length);
