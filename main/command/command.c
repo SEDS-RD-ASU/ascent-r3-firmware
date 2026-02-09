@@ -23,6 +23,8 @@ esp_err_t enable_txlock(void)
 
     led_green();
 
+    atomic_store(&TXLOCK, true);
+
     return ESP_OK;
 }
 
