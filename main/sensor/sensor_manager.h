@@ -6,6 +6,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "stdatomic.h"
 
 #include "i2c_manager.h"
 #include "spi_manager.h"
@@ -59,7 +60,7 @@ typedef struct {
     TaskHandle_t read_baro_task;
 } bmp_context_t;
 
-esp_err_t initialize_sensors(void);
+esp_err_t initialize_sensors(bool simulator);
 
 void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel, acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr, gps_sample_t *gps);
 
@@ -68,5 +69,7 @@ void barometer_int_callback(void *args);
 void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel);
 
 esp_err_t poll_gps(gps_sample_t *gps);
+
+void feed_fake_flight_data(barometer_sample_t baro, barometer_velocity_t baro_vel, acc_sample_t high_g, acc_sample_t low_g, gyr_sample_t gyr, gps_sample_t gps);
 
 #endif

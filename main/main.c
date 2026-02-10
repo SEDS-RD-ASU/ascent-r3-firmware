@@ -17,6 +17,7 @@
 #include "esp_system.h"
 #include "esp_log.h"
 #include "driver/gptimer.h"
+#include "driver/usb_serial_jtag.h"
 
 //MARK: R3 DEVICE INTERFACES
 #include "ascent_r3_hardware_definition.h"
@@ -38,6 +39,7 @@
 #include "flight.h"
 
 // #define DEBUG
+#define SIMULATOR
 
 //GLOBALS
 _Atomic barometer_sample_t baro;
@@ -47,7 +49,8 @@ _Atomic acc_sample_t high_g_acc;
 _Atomic gyr_sample_t gyr;
 _Atomic gps_sample_t gps;
 
-//MARK: TESTING UTILITIES
+//MARK: TESTING UTILITIES.
+//REMOVE THESE BEFORE MERGING TO FLIGHT BRANCH.
 void measure_performance()
 {
     uint64_t times = 0;
@@ -119,6 +122,11 @@ esp_err_t flight_initialize_devices(void)
     esp_err_t ret = ESP_OK;
     board_information_t board_info;
 
+    bool is_simulator = false;
+    #ifdef SIMULATOR
+    is_simulator = true;
+    #endif
+
     ret = buzzer_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE BUZZER"); return ret;}
     ascent_beep(); // beep boop
@@ -142,7 +150,7 @@ esp_err_t flight_initialize_devices(void)
     ret = uart_flight_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE UART BUSSES"); return ret;}
 
-    ret = initialize_sensors();
+    ret = initialize_sensors(is_simulator);
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SENSORS"); return ret;}
 
     serial_util_init();
@@ -165,7 +173,7 @@ esp_err_t flight_initialize_devices(void)
 }
 
 //MARK: PRIMARY TASK
-// Will be running at 50Hz
+// Will be running at 50Hz on the primary core.
 TaskHandle_t primary_task_handle;
 int primary_loop_fq = 50;
 TickType_t xFrequency_primary;
@@ -196,7 +204,7 @@ void primary_task(void *pvParameters)
 
         baro_update(primary_baro, &primary_baro_vel);
 
-        #ifdef DEBUG
+        #ifdef DEBUG // DO NOT MERGE THIS SECTION TO FLIGHT BRANCH.
         printf( 
             "baro[t=%" PRIi64 "] P=%.2f T=%.2f AGL=%.2f GND=%.2f | vel=%.2f avg=%.2f | "
             "highG[%.3f %.3f %.3f] lowG[%.3f %.3f %.3f] gyr[%.3f %.3f %.3f] | "
@@ -342,6 +350,43 @@ void flash_task(void *pvParameters)
     }
 }
 
+
+//MARK: SIMULATOR TASK
+// Operates only in SITL (Software-in-the-loop) testing mode
+#define BUF_SIZE (1024)
+#define ECHO_TASK_STACK_SIZE (4096)
+TaskHandle_t simulator_task_handle;
+void simulator_task(void *pvParameters)
+{
+    // Configure USB SERIAL JTAG
+    usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
+        .rx_buffer_size = BUF_SIZE,
+        .tx_buffer_size = BUF_SIZE,
+    };
+
+    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
+    ESP_LOGI("usb_serial_jtag echo", "USB_SERIAL_JTAG init done");
+
+    // Configure a temporary buffer for the incoming data
+    uint8_t *data = (uint8_t *) malloc(BUF_SIZE);
+    if (data == NULL) {
+        ESP_LOGE("usb_serial_jtag echo", "no memory for data");
+        return;
+    }
+
+    while (1) {
+
+        int len = usb_serial_jtag_read_bytes(data, (BUF_SIZE - 1), 20 / portTICK_PERIOD_MS);
+
+        // Write data back to the USB SERIAL JTAG
+        if (len) {
+            usb_serial_jtag_write_bytes((const char *) data, len, 20 / portTICK_PERIOD_MS);
+            data[len] = '\0';
+            ESP_LOG_BUFFER_HEXDUMP("Recv str: ", data, len, ESP_LOG_INFO);
+        }
+    }
+}
+
 //MARK: ENTRY POINT
 void app_main(void)
 {
@@ -375,9 +420,16 @@ void app_main(void)
 
     // measure_performance();
 
+    // PRIMARY CORE TASKS
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
+
+    // SECONDARY CORE TASKS
     xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2, &fast_sensor_task_handle, 1);
     xTaskCreatePinnedToCore(slow_sensor_task, "slow_sensor_task", 8192, NULL, 2, &slow_sensor_task_handle, 1);
     xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 1, &flash_task_handle, 1);
+
+    #ifdef SIMULATOR // todo: replace w/ debug harness logic
+    xTaskCreatePinnedToCore(simulator_task, "USB SERIAL JTAG_echo_task", ECHO_TASK_STACK_SIZE, NULL, 10, &simulator_task_handle, 1);
+    #endif
 
 }

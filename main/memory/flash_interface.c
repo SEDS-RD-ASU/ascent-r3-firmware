@@ -330,6 +330,7 @@ void try_to_dump_data() {
             }
         }
     }
+    usb_serial_jtag_driver_uninstall();
 }
 
 void flash_erase_jingle(void) {

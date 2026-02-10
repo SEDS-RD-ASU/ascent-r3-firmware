@@ -29,6 +29,7 @@ idf_component_register(
         psu
         adc
         goober
+        esp_driver_usb_serial_jtag
     INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
         "memory"
