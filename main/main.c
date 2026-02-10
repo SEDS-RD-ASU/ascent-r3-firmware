@@ -39,7 +39,7 @@
 #include "flight.h"
 
 // #define DEBUG
-#define SIMULATOR
+// #define SIMULATOR
 
 //GLOBALS
 _Atomic barometer_sample_t baro;
@@ -278,6 +278,9 @@ void primary_task(void *pvParameters)
         flight_update(primary_baro.altitude_agl, primary_baro_vel.velocity, primary_baro_vel.average_velocity, primary_high_g_acc.acc_y);
 
         flash_queue_packet(&primary_flash_packet);
+
+        uart0_transmit((uint8_t *)&primary_flash_packet, sizeof(flash_packet));
+        uart0_transmit((uint8_t *)"\n\n\n\n", 4);
 
         cycle = (cycle + 1) % primary_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_primary);
