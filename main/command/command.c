@@ -74,12 +74,12 @@ esp_err_t process_command(uint8_t msg_class)
         }
         case(PYRO1): {
             printf("Poppng apogee!\n");
-            pyro_activate(APPO, 500, 1);
+            pyro_activate(APPO, 250, 1);
             break;
         }
         case(PYRO2): {
             printf("Poppng main!\n");
-            pyro_activate(MAINS, 500, 1);
+            pyro_activate(MAINS, 250, 1);
             break;
         }
         case(PYRO3): {
