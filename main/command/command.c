@@ -9,6 +9,27 @@ _Atomic bool TXLOCK = false;
 
 static uint8_t command_packet_buf[250];
 
+QueueHandle_t telemetryPayloadQueue;
+#define TELEMETRY_QUEUE_SIZE 1
+
+void queueLatestTelemetry(ascent_telemetry_t *payload) {
+	xQueueOverwrite(telemetryPayloadQueue, payload);
+}
+
+void peekLatestTelemetry(ascent_telemetry_t *payload) {
+	// Use a 100ms timeout instead of portMAX_DELAY to prevent blocking ISRs
+	// If queue is empty, return a zeroed payload
+	if (xQueuePeek(telemetryPayloadQueue, payload, pdMS_TO_TICKS(100)) != pdTRUE) {
+		// Queue is empty or timeout - return a zeroed payload
+		memset(payload, 0, sizeof(ascent_telemetry_t));
+	}
+}
+
+void initialize_telemetry_queue(void)
+{
+    telemetryPayloadQueue = xQueueCreate(TELEMETRY_QUEUE_SIZE, sizeof(ascent_telemetry_t));
+}
+
 esp_err_t enable_txlock(void)
 {
     int ret;
@@ -116,7 +137,7 @@ bool is_tx_lock()
     return atomic_load(&TXLOCK);
 }
 
-uint8_t next_sequence_id()
+uint8_t next_sequence_id(void)
 {
     static uint8_t seq_counter = 0x00;
     
@@ -134,7 +155,7 @@ esp_err_t single_byte_response(uint16_t resp_msg_cls, uint8_t response_payload)
 {
     int ret;
     uint8_t resp_payload_buf = 0;
-    size_t serialized_packet_length = 0;
+    uint8_t serialized_packet_length = 0;
 
     uint8_t transmission_mode = 1;
     goober_header_t response_header;

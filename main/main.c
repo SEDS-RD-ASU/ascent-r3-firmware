@@ -4,8 +4,9 @@
  */
 
 
-//MARK: ESP-IDF
+//ESP-IDF
 #include <stdio.h>
+#include <string.h>
 #include <inttypes.h>
 #include "stdatomic.h"
 #include "sdkconfig.h"
@@ -19,7 +20,7 @@
 #include "driver/gptimer.h"
 #include "driver/usb_serial_jtag.h"
 
-//MARK: R3 DEVICE INTERFACES
+//R3 DEVICE INTERFACES
 #include "ascent_r3_hardware_definition.h"
 #include "driver_buzzer.h"
 #include "beep.h"
@@ -34,12 +35,16 @@
 #include "driver_psu.h"
 #include "serial_util.h"
 #include "ble.h"
+#include "command.h"
 
 //FLIGHT STATE MANAGEMENT
 #include "flight.h"
 
+//TELEMETRY
+#include "goober.h"
+
 // #define DEBUG
-// #define SIMULATOR
+#define SIMULATOR
 
 //GLOBALS
 _Atomic barometer_sample_t baro;
@@ -88,6 +93,7 @@ void measure_performance()
     megolavania();
 }
 
+
 void validate_esp(void)
 {
     /* Print chip information */
@@ -116,6 +122,7 @@ void validate_esp(void)
     printf("Minimum free heap size: %" PRIu32 " bytes\n", esp_get_minimum_free_heap_size());
 }
 
+
 //MARK: INITIALIZATION CODE
 esp_err_t flight_initialize_devices(void)
 {
@@ -135,7 +142,10 @@ esp_err_t flight_initialize_devices(void)
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE LED"); return ret;}
     led_blue(); // let there be light
 
-    ret = psu_init_default();
+    ret = pyro_init();
+    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE PYRO"); return ret;}
+
+    ret = psu_init_default_with_adc(pyro_get_adc1_handle());
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE PSU"); return ret;}
 
     ret = nvs_interface_init();
@@ -160,7 +170,7 @@ esp_err_t flight_initialize_devices(void)
     
     ret = flash_flight_init();
     if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
-
+    
     print_board_info();
     led_yellow();
     high_beep();high_beep();high_beep(); // success!
@@ -171,6 +181,7 @@ esp_err_t flight_initialize_devices(void)
 
     return ESP_OK;
 }
+
 
 //MARK: PRIMARY TASK
 // Will be running at 50Hz on the primary core.
@@ -190,10 +201,12 @@ void primary_task(void *pvParameters)
     acc_sample_t primary_high_g_acc;
     gyr_sample_t primary_gyr;
     gps_sample_t primary_gps;
+    double batt_voltage = 0;
 
     while (1)
     {
         uint8_t flight_state = get_flight_state();
+        uint8_t pyro_arm = calc_pyro_arm();
 
         primary_baro = atomic_load(&baro);
         primary_baro_vel = atomic_load(&baro_vel);
@@ -201,6 +214,7 @@ void primary_task(void *pvParameters)
         primary_high_g_acc = atomic_load(&high_g_acc);
         primary_gyr = atomic_load(&gyr);
         primary_gps = atomic_load(&gps);
+        batt_voltage = psu_read_battery_voltage();
 
         baro_update(primary_baro, &primary_baro_vel);
 
@@ -235,17 +249,10 @@ void primary_task(void *pvParameters)
             primary_gps.num_sats);
         #endif
 
-        if (flight_state > FS_ON_PAD && flight_state != FS_LANDED) // if we are in the air, basically
-        {
-            printf("I am flying!!!\n");
-        } else {
-            // Do something while not flying
-        }
-
         flash_packet primary_flash_packet = {
             .n = 0,
             .timestamp = esp_timer_get_time(),
-            .bat_voltage = psu_read_battery_voltage(),
+            .bat_voltage = batt_voltage,
             .flight_state = flight_state,
             .pyro_cont = 0, // TODO: REPLACE WITH ACTUAL PYRO LOGIC. FOR DAQ WE DON'T CARE RN.
             
@@ -253,6 +260,7 @@ void primary_task(void *pvParameters)
             .temperature = primary_baro.temperature,
             .altitude_agl = primary_baro.altitude_agl,
             .ground_altitude = primary_baro.ground_altitude,
+            .baro_vel = primary_baro_vel.velocity,
 
             .UTCtstamp = primary_gps.UTCtstamp,
             .lat = primary_gps.lat,
@@ -275,21 +283,43 @@ void primary_task(void *pvParameters)
             .gyr_z = primary_gyr.gyr_z,
         };
 
+        ascent_telemetry_t latest_telemetry_payload = {
+            .timestamp = esp_timer_get_time() / 1000, // convert us to ms
+            .latitude = primary_gps.lat,
+            .longitude = primary_gps.lon,
+            .altitude_agl = primary_baro.altitude_agl,
+            .vertical_velocity = primary_baro_vel.velocity,
+            .y_acc = primary_high_g_acc.acc_y,
+            .gyr_y = primary_gyr.gyr_y,
+            .pyro_state = pyro_arm,
+            .sats = primary_gps.num_sats,
+            .flight_state = flight_state,
+            .battery_voltage = (uint16_t)(batt_voltage * 2500),
+        };
+
+        queueLatestTelemetry(&latest_telemetry_payload);
+
+        if (flight_state > FS_ON_PAD && flight_state != FS_LANDED) // if we are in the air, basically
+        {
+            printf("I am flying!!!\n");
+            flash_queue_packet(&primary_flash_packet);
+        } else {
+            // Do something while not flying
+        }
+
         flight_update(primary_baro.altitude_agl, primary_baro_vel.velocity, primary_baro_vel.average_velocity, primary_high_g_acc.acc_y);
-
-        flash_queue_packet(&primary_flash_packet);
-
-        uart0_transmit((uint8_t *)&primary_flash_packet, sizeof(flash_packet));
-        uart0_transmit((uint8_t *)"\n\n\n\n", 4);
-
+        
         cycle = (cycle + 1) % primary_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_primary);
     }
 }
 
+
 //MARK: FAST SENSOR TASK
-// Will be running as fast as possible on core 1
+// Operates at 100hz on core 1
 TaskHandle_t fast_sensor_task_handle;
+int fast_sensor_task_frequency = 100;
+TickType_t xFrequency_fast_sensor_task;
 void fast_sensor_task(void *pvParameters)
 {
     barometer_sample_t temp_baro;
@@ -298,6 +328,10 @@ void fast_sensor_task(void *pvParameters)
     acc_sample_t temp_high_g_acc;
     gyr_sample_t temp_gyr;
     gps_sample_t temp_gps;
+
+    const TickType_t xFrequency_fast_sensor_task = pdMS_TO_TICKS(1000 / fast_sensor_task_frequency);
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    uint32_t cycle = 0;
 
     while(1)
     {
@@ -309,8 +343,12 @@ void fast_sensor_task(void *pvParameters)
         atomic_store(&low_g_acc, temp_low_g_acc);
         atomic_store(&gyr, temp_gyr);
         // atomic_store(&gps, temp_gps); MOVED TO SLOW SENSOR TASK
+
+        cycle = (cycle + 1) % fast_sensor_task_frequency;
+        vTaskDelayUntil(&xLastWakeTime, xFrequency_fast_sensor_task);
     }
 }
+
 
 //MARK: SLOW SENSOR TASK
 // Operates at 20Hz on core 1
@@ -336,56 +374,168 @@ void slow_sensor_task(void *pvParameters)
     }
 }
 
+
 //MARK: FLASH TASK
-// Operates as fast as possible on core 1
+// Operates at 60hz on core 1
 TaskHandle_t flash_task_handle;
+int flash_task_frequency = 60;
+TickType_t xFrequency_flash_task;
 void flash_task(void *pvParameters)
 {
+    const TickType_t xFrequency_flash_task = pdMS_TO_TICKS(1000 / flash_task_frequency);
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    uint32_t cycle = 0;
+
     while(1)
     {
-        uint8_t flight_state = get_flight_state();
+        flash_write_queue(12500);
 
-        if (flight_state > FS_ON_PAD && flight_state != FS_LANDED) {
-            flash_write_queue(12500);
+        cycle = (cycle + 1) % flash_task_frequency;
+        vTaskDelayUntil(&xLastWakeTime, xFrequency_flash_task);
+    }
+}
+
+
+//MARK: TELEMETRY TASK
+// Operates at 60hz on the primary core
+TaskHandle_t telemetry_task_handle;
+int telemetry_loop_fq = 60;
+TickType_t xFrequency_telemetry;
+void telemetry_task(void *pvParameters)
+{
+    const TickType_t xFrequency_telemetry = pdMS_TO_TICKS(1000 / telemetry_loop_fq);
+
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    uint32_t cycle = 0;
+
+    ascent_telemetry_t latest_telemetry;
+    board_information_t board_info;
+    nvs_retrieve_board_info(&board_info);
+
+    uint8_t telemetry_buffer[256]; // GOOBER packets cannot be more than 256 bytes
+    uint8_t latest_telemetry_buffer_size = 0;
+    
+
+    goober_header_t latest_header = {
+        .dev_id = board_info.serial_number,
+        .dev_mode = 0, // will be overwritten
+        .seq_id = 0, // will be overwritten
+        .msg_cls = 0, // will be overwritten
+        .payload_length = 0, // will be overwritten
+    };
+
+    while(1) {
+        peekLatestTelemetry(&latest_telemetry);
+
+        latest_header.seq_id = next_sequence_id();
+        latest_header.msg_cls = TELEMETRY;
+        latest_header.payload_length = sizeof(ascent_telemetry_t);
+
+        if(is_tx_lock())
+        {
+            latest_header.dev_mode = goober_device_mode(GOOBER_MODE_SIMPLEX, true, true, false, false);
+        } else {
+            latest_header.dev_mode = goober_device_mode(GOOBER_MODE_HALF_DUPLEX, false, true, false, false);
         }
 
-        taskYIELD();
+        goober_serialize(latest_header, (uint8_t *)&latest_telemetry, sizeof(latest_telemetry), telemetry_buffer, sizeof(telemetry_buffer), &latest_telemetry_buffer_size);
+        
+        uart1_transmit((uint8_t *)&telemetry_buffer, latest_telemetry_buffer_size);
+        uart1_transmit((uint8_t *)"\n\n\n\n", 4);
+
+        cycle = (cycle + 1) % telemetry_loop_fq;
+        vTaskDelayUntil(&xLastWakeTime, xFrequency_telemetry);
     }
 }
 
 
 //MARK: SIMULATOR TASK
 // Operates only in SITL (Software-in-the-loop) testing mode
-#define BUF_SIZE (1024)
-#define ECHO_TASK_STACK_SIZE (4096)
+#define SIMULATOR_TASK_STACK_SIZE (4096)
+#define SIMULATOR_BUF_SIZE (1024)
+#define DELIMITER "\n\n\n\n"
+#define DELIMITER_LEN 4
 TaskHandle_t simulator_task_handle;
 void simulator_task(void *pvParameters)
 {
-    // Configure USB SERIAL JTAG
-    usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
-        .rx_buffer_size = BUF_SIZE,
-        .tx_buffer_size = BUF_SIZE,
+    uint8_t rx_byte;
+    uint8_t accum_buf[SIMULATOR_BUF_SIZE];
+    int accum_len = 0;
+    
+    barometer_sample_t temp_baro;
+    barometer_velocity_t temp_baro_vel;
+    acc_sample_t temp_low_g_acc;
+    acc_sample_t temp_high_g_acc;
+    gyr_sample_t temp_gyr;
+    gps_sample_t temp_gps = {
+        .lat = 99,
+        .lon = 99
     };
 
-    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
-    ESP_LOGI("usb_serial_jtag echo", "USB_SERIAL_JTAG init done");
-
-    // Configure a temporary buffer for the incoming data
-    uint8_t *data = (uint8_t *) malloc(BUF_SIZE);
-    if (data == NULL) {
-        ESP_LOGE("usb_serial_jtag echo", "no memory for data");
-        return;
-    }
-
     while (1) {
+        int len = usb_serial_jtag_read_bytes(&rx_byte, 1, 20 / portTICK_PERIOD_MS);
+        if (len <= 0) continue;
 
-        int len = usb_serial_jtag_read_bytes(data, (BUF_SIZE - 1), 20 / portTICK_PERIOD_MS);
+        if (accum_len < SIMULATOR_BUF_SIZE) {
+            accum_buf[accum_len++] = rx_byte;
+        } else {
+            // Buffer overflow — reset
+            const char *overflow_msg = "ERR: RX buffer overflow, resetting\n";
+            usb_serial_jtag_write_bytes(overflow_msg, strlen(overflow_msg), 20);
+            accum_len = 0;
+            continue;
+        }
 
-        // Write data back to the USB SERIAL JTAG
-        if (len) {
-            usb_serial_jtag_write_bytes((const char *) data, len, 20 / portTICK_PERIOD_MS);
-            data[len] = '\0';
-            ESP_LOG_BUFFER_HEXDUMP("Recv str: ", data, len, ESP_LOG_INFO);
+        // Check for delimiter at the end of the buffer
+        if (accum_len >= DELIMITER_LEN &&
+            memcmp(&accum_buf[accum_len - DELIMITER_LEN], DELIMITER, DELIMITER_LEN) == 0)
+        {
+            int payload_len = accum_len - DELIMITER_LEN;
+
+            if (payload_len == sizeof(flash_packet)) {
+                flash_packet *packet = (flash_packet *)accum_buf;
+                // Parse all fields from the flash_packet into the temp_* variables
+                temp_baro.pressure = packet->pressure;
+                temp_baro.temperature = packet->temperature;
+                temp_baro.altitude_agl = packet->altitude_agl;
+                temp_baro.ground_altitude = packet->ground_altitude;
+
+                temp_low_g_acc.acc_x = packet->acc_x;
+                temp_low_g_acc.acc_y = packet->acc_y;
+                temp_low_g_acc.acc_z = packet->acc_z;
+
+                temp_high_g_acc.acc_x = packet->hacc_x * 9.81;
+                temp_high_g_acc.acc_y = packet->hacc_y * 9.81;
+                temp_high_g_acc.acc_z = packet->hacc_z * 9.81;
+
+                temp_gyr.gyr_x = packet->gyr_x;
+                temp_gyr.gyr_y = packet->gyr_y;
+                temp_gyr.gyr_z = packet->gyr_z;
+
+                temp_gps.UTCtstamp = packet->UTCtstamp;
+                temp_gps.lat = packet->lat;
+                temp_gps.lon = packet->lon;
+                temp_gps.altitude_ellipsoid = packet->altitude_ellipsoid;
+                temp_gps.altitude_msl = packet->altitude_msl;
+                temp_gps.fixType = packet->fixType;
+                temp_gps.num_sats = packet->num_sats;
+
+                feed_fake_flight_data(temp_baro, temp_baro_vel, temp_high_g_acc, temp_low_g_acc, temp_gyr, temp_gps);
+            } else {
+                char warn_buf[64];
+                int warn_len = snprintf(warn_buf, sizeof(warn_buf),
+                    "WARN: Bad packet size: got %d, expected %d\nBytes: ",
+                    payload_len, (int)sizeof(flash_packet));
+                usb_serial_jtag_write_bytes(warn_buf, warn_len, 20);
+                for (int i = 0; i < payload_len; i++) {
+                    char hex[4];
+                    int hex_len = snprintf(hex, sizeof(hex), "%02X ", accum_buf[i]);
+                    usb_serial_jtag_write_bytes(hex, hex_len, 20);
+                }
+                usb_serial_jtag_write_bytes("\n", 1, 20);
+            }
+
+            accum_len = 0;
         }
     }
 }
@@ -422,17 +572,28 @@ void app_main(void)
     try_to_dump_data();
 
     // measure_performance();
+    
+    initialize_telemetry_queue();
+
+    #ifdef SIMULATOR // todo: replace w/ debug harness logic
+    // Configure USB SERIAL JTAG
+    usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
+        .rx_buffer_size = 1024,
+        .tx_buffer_size = 1024,
+    };
+    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
+    ESP_LOGI("app_main", "USB_SERIAL_JTAG init done");
+
+    xTaskCreatePinnedToCore(simulator_task, "simulator_task", SIMULATOR_TASK_STACK_SIZE, NULL, 10, &simulator_task_handle, 1);
+    #endif
 
     // PRIMARY CORE TASKS
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
+    xTaskCreatePinnedToCore(telemetry_task, "telemetry_task", 8192, NULL, 1, &telemetry_task_handle, 0);
 
     // SECONDARY CORE TASKS
     xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2, &fast_sensor_task_handle, 1);
     xTaskCreatePinnedToCore(slow_sensor_task, "slow_sensor_task", 8192, NULL, 2, &slow_sensor_task_handle, 1);
     xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 1, &flash_task_handle, 1);
-
-    #ifdef SIMULATOR // todo: replace w/ debug harness logic
-    xTaskCreatePinnedToCore(simulator_task, "USB SERIAL JTAG_echo_task", ECHO_TASK_STACK_SIZE, NULL, 10, &simulator_task_handle, 1);
-    #endif
 
 }
