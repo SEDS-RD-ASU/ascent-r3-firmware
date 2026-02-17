@@ -29,6 +29,7 @@
 #include "goober.h"
 #include "command.h"
 #include "driver_psu.h"
+#include "nvs_interface.h"
 
 static const ble_uuid16_t gatt_svr_svc_uuid =
     BLE_UUID16_INIT(0x0000);
@@ -183,8 +184,40 @@ static int gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
         if (attr_handle == gatt_svr_chr_val_handle) {
             
             // Append the serialized data to the output mbuf
-            uint8_t voltage = 25*(uint8_t)(psu_read_battery_voltage());
-            rc = os_mbuf_append(ctxt->om, &voltage, 1);
+
+            goober_header_t latest_header = {
+                .dev_id = board_serial_number(),
+                .dev_mode = 0, // will be overwritten
+                .seq_id = 0, // will be overwritten
+                .msg_cls = 0, // will be overwritten
+                .payload_length = 0, // will be overwritten
+            };
+
+            ascent_telemetry_t latest_telemetry;
+            uint8_t latest_telemetry_buffer_size = 0;
+            uint8_t *telemetry_buffer = (uint8_t *)malloc(256);
+            if (!telemetry_buffer) {
+                MODLOG_DFLT(ERROR, "Failed to malloc telemetry buffer\n");
+                return BLE_ATT_ERR_UNLIKELY;
+            }
+
+            peekLatestTelemetry(&latest_telemetry);
+
+            latest_header.seq_id = next_sequence_id();
+            latest_header.msg_cls = TELEMETRY;
+            latest_header.payload_length = sizeof(ascent_telemetry_t);
+
+            if(is_tx_lock())
+            {
+                latest_header.dev_mode = goober_device_mode(GOOBER_MODE_SIMPLEX, true, true, false, false);
+            } else {
+                latest_header.dev_mode = goober_device_mode(GOOBER_MODE_HALF_DUPLEX, false, true, false, false);
+            }
+
+            goober_serialize(latest_header, (uint8_t *)&latest_telemetry, sizeof(latest_telemetry), telemetry_buffer, 256, &latest_telemetry_buffer_size);
+
+            rc = os_mbuf_append(ctxt->om, telemetry_buffer, latest_telemetry_buffer_size);
+            free(telemetry_buffer);
             if (rc != 0) {
                 MODLOG_DFLT(ERROR, "Failed to append data to mbuf; rc=%d\n", rc);
                 return BLE_ATT_ERR_UNLIKELY;
