@@ -4,6 +4,10 @@
 #include "flash_interface.h"
 #include "ble.h"
 #include "onboard_led.h"
+#include "driver_pyro.h"
+
+#define APPO PYRO_CHANNEL_1
+#define MAINS PYRO_CHANNEL_2
 
 _Atomic bool TXLOCK = false;
 
@@ -69,9 +73,13 @@ esp_err_t process_command(uint8_t msg_class)
             break; // this would never be reached...
         }
         case(PYRO1): {
+            printf("Poppng apogee!\n");
+            pyro_activate(APPO, 500, 1);
             break;
         }
         case(PYRO2): {
+            printf("Poppng main!\n");
+            pyro_activate(MAINS, 500, 1);
             break;
         }
         case(PYRO3): {
@@ -177,3 +185,4 @@ esp_err_t single_byte_response(uint16_t resp_msg_cls, uint8_t response_payload)
 
     return ESP_OK;
 }
+

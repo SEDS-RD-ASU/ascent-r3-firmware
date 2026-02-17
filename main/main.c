@@ -183,6 +183,18 @@ esp_err_t flight_initialize_devices(void)
 }
 
 
+//MARK: Pyro Beep
+void beep_pyro_cont(void) {
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 4; j++) {
+            if (pyro_continuity(j+1)) high_beep();
+            else low_beep();
+            vTaskDelay(200 / portTICK_PERIOD_MS);
+        }
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
+    }
+}
+
 //MARK: PRIMARY TASK
 // Will be running at 50Hz on the primary core.
 TaskHandle_t primary_task_handle;
@@ -207,6 +219,7 @@ void primary_task(void *pvParameters)
     {
         uint8_t flight_state = get_flight_state();
         uint8_t pyro_arm = calc_pyro_arm();
+        pyro_update_state();
 
         primary_baro = atomic_load(&baro);
         primary_baro_vel = atomic_load(&baro_vel);
@@ -564,6 +577,10 @@ void app_main(void)
         vTaskDelay(pdMS_TO_TICKS(1000));
         esp_restart();
     }
+
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    beep_pyro_cont();
 
     flight_config_init();
     print_flight_config();
