@@ -113,3 +113,19 @@ void print_board_info(){
     printf("Manufactured on %d/%d/%d\n", board_info.manufacture_month, board_info.manufacture_day, board_info.manufacture_year);
     printf("=========================\n\n");
 }
+
+uint8_t board_serial_number(void)
+{
+    static uint8_t serial_num = 0;
+    
+    if(serial_num)
+    {
+        return serial_num;
+    }
+
+    board_information_t board_info;
+    nvs_retrieve_board_info(&board_info);
+    serial_num = board_info.serial_number;
+
+    return serial_num;
+}

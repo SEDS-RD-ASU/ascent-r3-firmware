@@ -422,15 +422,13 @@ void telemetry_task(void *pvParameters)
     uint32_t cycle = 0;
 
     ascent_telemetry_t latest_telemetry;
-    board_information_t board_info;
-    nvs_retrieve_board_info(&board_info);
 
     uint8_t telemetry_buffer[256]; // GOOBER packets cannot be more than 256 bytes
     uint8_t latest_telemetry_buffer_size = 0;
     
 
     goober_header_t latest_header = {
-        .dev_id = board_info.serial_number,
+        .dev_id = board_serial_number(),
         .dev_mode = 0, // will be overwritten
         .seq_id = 0, // will be overwritten
         .msg_cls = 0, // will be overwritten

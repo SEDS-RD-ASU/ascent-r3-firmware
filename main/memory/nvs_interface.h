@@ -3,7 +3,7 @@
 
 #include "nvs_flash.h"
 #include "nvs.h"
-
+#include "stdint.h"
 #include "flight_config.h"
 
 typedef struct {
@@ -27,5 +27,6 @@ esp_err_t nvs_set_flight_config(flight_config_t *flight_config);
 esp_err_t nvs_retrieve_board_info(board_information_t *board_info);
 esp_err_t nvs_set_board_info(board_information_t *board_info);
 void print_board_info();
+uint8_t board_serial_number(void);
 
 #endif
