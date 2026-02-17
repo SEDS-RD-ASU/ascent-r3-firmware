@@ -44,7 +44,7 @@
 #include "goober.h"
 
 // #define DEBUG
-#define SIMULATOR
+// #define SIMULATOR
 
 //GLOBALS
 _Atomic barometer_sample_t baro;
