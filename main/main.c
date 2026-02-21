@@ -229,6 +229,8 @@ void primary_task(void *pvParameters)
         primary_gps = atomic_load(&gps);
         batt_voltage = psu_read_battery_voltage();
 
+        // printf("%f\n", primary_baro.altitude_agl);
+
         baro_update(primary_baro, &primary_baro_vel);
 
         #ifdef DEBUG // DO NOT MERGE THIS SECTION TO FLIGHT BRANCH.

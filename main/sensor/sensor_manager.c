@@ -220,6 +220,10 @@ void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel, ac
     if (barometer_data_ready) {
         poll_baro(pBaro);
         barometer_data_ready = false;
+        if(simulator)
+        {
+            barometer_data_ready = true;
+        }
     }
     if (imu_data_ready){
         poll_imu(high_g, low_g, gyr);
