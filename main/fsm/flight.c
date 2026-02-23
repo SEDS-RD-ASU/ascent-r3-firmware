@@ -121,8 +121,6 @@ bool flight_update(
                     enable_txlock();
                     printf("Activated txlock from FSM\n");
                 }
-            // } else if (!should_wake_up() && count1 == 0) {
-            //     flight_state = FS_PREFLIGHT;
             }
             break;
 
