@@ -116,7 +116,7 @@ void print_board_info(){
 
 uint8_t board_serial_number(void)
 {
-    static uint8_t serial_num = 0;
+    static uint8_t serial_num = 0; // board serial number is never 0
     
     if(serial_num)
     {

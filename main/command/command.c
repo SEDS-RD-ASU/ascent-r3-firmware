@@ -5,6 +5,7 @@
 #include "ble.h"
 #include "onboard_led.h"
 #include "driver_pyro.h"
+#include "beep.h"
 
 #define APPO PYRO_CHANNEL_1
 #define MAINS PYRO_CHANNEL_2
@@ -129,7 +130,10 @@ esp_err_t process_command(uint8_t msg_class)
             break;
         }
         case(ERASE_FLASH): {
+            led_blue();
+            high_beep();
             flash_blank_slate();
+            led_red();
             break;
         }
         default: {
