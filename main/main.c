@@ -171,8 +171,6 @@ esp_err_t flight_initialize_devices(void)
     ble_init(board_serial_number());
     
     print_board_info();
-    led_yellow();
-    high_beep();high_beep();high_beep(); // success!
 
     printf("\n\n");
     ESP_LOGI("flight_initialize_devices", "All devices initialized successfully!");
@@ -619,5 +617,8 @@ void app_main(void)
     // PRIMARY CORE TASKS
     xTaskCreatePinnedToCore(telemetry_task, "telemetry_task", 8192, NULL, 1, &telemetry_task_handle, 0);
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
+
+    led_yellow();
+    high_beep();high_beep();high_beep(); // success!
 
 }
