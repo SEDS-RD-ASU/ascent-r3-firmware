@@ -518,9 +518,9 @@ void simulator_task(void *pvParameters)
                 temp_low_g_acc.acc_y = packet->acc_y;
                 temp_low_g_acc.acc_z = packet->acc_z;
 
-                temp_high_g_acc.acc_x = packet->hacc_x * 9.81;
-                temp_high_g_acc.acc_y = packet->hacc_y * 9.81;
-                temp_high_g_acc.acc_z = packet->hacc_z * 9.81;
+                temp_high_g_acc.acc_x = packet->hacc_x;
+                temp_high_g_acc.acc_y = packet->hacc_y;
+                temp_high_g_acc.acc_z = packet->hacc_z;
 
                 temp_gyr.gyr_x = packet->gyr_x;
                 temp_gyr.gyr_y = packet->gyr_y;
