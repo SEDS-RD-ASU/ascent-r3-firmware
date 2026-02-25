@@ -164,9 +164,6 @@ esp_err_t flight_initialize_devices(void)
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SENSORS"); return ret;}
 
     serial_util_init();
-
-    nvs_retrieve_board_info(&board_info);
-    ble_init(board_info.serial_number);
     
     ret = flash_flight_init();
     if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
@@ -301,13 +298,15 @@ void primary_task(void *pvParameters)
             .gyr_z = primary_gyr.gyr_z,
         };
 
+        flash_queue_packet(&primary_flash_packet);
+
         ascent_telemetry_t latest_telemetry_payload = {
             .timestamp = esp_timer_get_time() / 1000, // convert us to ms
             .latitude = primary_gps.lat,
             .longitude = primary_gps.lon,
             .altitude_agl = primary_baro.altitude_agl,
             .vertical_velocity = primary_baro_vel.velocity,
-            .y_acc = primary_high_g_acc.acc_y,
+            .y_acc = primary_low_g_acc.acc_y,
             .gyr_y = primary_gyr.gyr_y,
             .pyro_state = pyro_arm,
             .sats = primary_gps.num_sats,
@@ -319,13 +318,12 @@ void primary_task(void *pvParameters)
 
         if (flight_state > FS_ON_PAD && flight_state != FS_LANDED) // if we are in the air, basically
         {
-            printf("I am flying!!!\n");
-            flash_queue_packet(&primary_flash_packet);
+            // printf("I am flying!!!\n");
         } else {
             // Do something while not flying
         }
 
-        flight_update(primary_baro.altitude_agl, primary_baro_vel.velocity, primary_baro_vel.average_velocity, primary_high_g_acc.acc_y);
+        flight_update(primary_baro.altitude_agl, primary_baro_vel.velocity, primary_baro_vel.average_velocity, primary_low_g_acc.acc_y);
         
         cycle = (cycle + 1) % primary_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_primary);
@@ -404,9 +402,15 @@ void flash_task(void *pvParameters)
     TickType_t xLastWakeTime = xTaskGetTickCount();
     uint32_t cycle = 0;
 
+    uint8_t flight_state;
+
     while(1)
     {
-        flash_write_queue(12500);
+        flight_state = get_flight_state();
+
+        if (flight_state >FS_ON_PAD && flight_state != FS_LANDED) {
+            flash_write_queue(12500);
+        }
 
         cycle = (cycle + 1) % flash_task_frequency;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_flash_task);
@@ -606,10 +610,6 @@ void app_main(void)
 
     xTaskCreatePinnedToCore(simulator_task, "simulator_task", SIMULATOR_TASK_STACK_SIZE, NULL, 10, &simulator_task_handle, 1);
     #endif
-
-    // PRIMARY CORE TASKS
-    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
-    xTaskCreatePinnedToCore(telemetry_task, "telemetry_task", 8192, NULL, 1, &telemetry_task_handle, 0);
 
     // SECONDARY CORE TASKS
     xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2, &fast_sensor_task_handle, 1);
