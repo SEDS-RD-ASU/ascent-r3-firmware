@@ -18,6 +18,7 @@ typedef struct {
     double ground_altitude;
     //barometer_velocity_t
     double baro_vel;
+    double avg_baro_vel;
 
     //gps_sample_t
     uint32_t UTCtstamp;

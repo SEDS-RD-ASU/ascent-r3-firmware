@@ -276,7 +276,8 @@ void primary_task(void *pvParameters)
             .altitude_agl = primary_baro.altitude_agl,
             .ground_altitude = primary_baro.ground_altitude,
             .baro_vel = primary_baro_vel.velocity,
-
+            .avg_baro_vel = primary_baro_vel.average_velocity,
+            
             .UTCtstamp = primary_gps.UTCtstamp,
             .lat = primary_gps.lat,
             .lon = primary_gps.lon,
