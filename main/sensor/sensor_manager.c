@@ -38,22 +38,22 @@ esp_err_t initialize_sensors(bool is_simulator)
         spi_host_device_t LSM_SPI_HOST = SPI3_HOST;
 
         // Install ISR service
-        ret = gpio_install_isr_service(0);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to install ISR service");
-            return ret;
-        }
+        // ret = gpio_install_isr_service(0);
+        // if (ret != ESP_OK) {
+        //     ESP_LOGE(TAG, "Failed to install ISR service");
+        //     return ret;
+        // }
 
-        ret = bmp390_flight_init(BMP390_I2C_PORT, barometer_int_callback, &bmp_ctx);
-        if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE BMP390"); return ret;}
+        // ret = bmp390_flight_init(BMP390_I2C_PORT, barometer_int_callback, &bmp_ctx);
+        // if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE BMP390"); return ret;}
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        // vTaskDelay(pdMS_TO_TICKS(1000));
 
         ret = GPS_init(SAM_M10Q_I2C_PORT);
         if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE SAM-M10Q"); return ret;}
 
-        ret = lsm_flight_init(LSM_SPI_HOST);
-        if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE LSM6DSV320X"); return ret;}
+        // ret = lsm_flight_init(LSM_SPI_HOST);
+        // if(ret != ESP_OK) {ESP_LOGE(TAG, "FAILED TO INITIALIZE LSM6DSV320X"); return ret;}
 
         ESP_LOGI(TAG, "SUCCESSFULLY INITIALIZED ALL SENSORS");
     }

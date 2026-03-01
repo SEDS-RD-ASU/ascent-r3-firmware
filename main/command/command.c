@@ -39,7 +39,7 @@ esp_err_t enable_txlock(void)
 {
     int ret;
 
-    led_purple();
+    // led_purple();
 
     ret = flash_prepare_for_flight();
 

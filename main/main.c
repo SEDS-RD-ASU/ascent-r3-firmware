@@ -32,7 +32,7 @@
 #include "flash_interface.h"
 #include "nvs_interface.h"
 #include "flash_interface.h"
-#include "driver_psu.h"
+// #include "driver_psu.h"
 #include "serial_util.h"
 #include "ble.h"
 #include "command.h"
@@ -136,17 +136,17 @@ esp_err_t flight_initialize_devices(void)
 
     ret = buzzer_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE BUZZER"); return ret;}
-    ascent_beep(); // beep boop
+    // ascent_beep(); // beep boop
     
     ret = led_init(PIN_LED);
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE LED"); return ret;}
     led_blue(); // let there be light
 
-    ret = pyro_init();
-    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE PYRO"); return ret;}
+    // ret = pyro_init();
+    // if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE PYRO"); return ret;}
 
-    ret = psu_init_default_with_adc(pyro_get_adc1_handle());
-    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE PSU"); return ret;}
+    // ret = psu_init_default_with_adc(pyro_get_adc1_handle());
+    // if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE PSU"); return ret;}
 
     ret = nvs_interface_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE NVS"); return ret;}
@@ -154,19 +154,19 @@ esp_err_t flight_initialize_devices(void)
     ret = i2c_flight_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE I2C BUSSES"); return ret;}
 
-    ret = spi_flight_init();
-    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SPI BUSSES"); return ret;}
+    // ret = spi_flight_init();
+    // if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SPI BUSSES"); return ret;}
 
-    ret = uart_flight_init();
-    if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE UART BUSSES"); return ret;}
+    // ret = uart_flight_init();
+    // if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE UART BUSSES"); return ret;}
 
     ret = initialize_sensors(is_simulator);
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE SENSORS"); return ret;}
 
-    serial_util_init();
+    // serial_util_init();
     
-    ret = flash_flight_init();
-    if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
+    // ret = flash_flight_init();
+    // if(ret != ESP_OK) {ESP_LOGI("flight_initialize_devices", "FAILED TO INITIALIZE SPI FLASH"); return ret;}
 
     ble_init(board_serial_number());
     
@@ -183,11 +183,11 @@ esp_err_t flight_initialize_devices(void)
 //MARK: Pyro Beep
 void beep_pyro_cont(void) {
     for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 4; j++) {
-            if (pyro_continuity(j+1)) high_beep();
-            else low_beep();
-            vTaskDelay(200 / portTICK_PERIOD_MS);
-        }
+        // for (int j = 0; j < 4; j++) {
+        //     if (pyro_continuity(j+1)) high_beep();
+        //     else low_beep();
+        //     vTaskDelay(200 / portTICK_PERIOD_MS);
+        // }
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
 }
@@ -215,8 +215,8 @@ void primary_task(void *pvParameters)
     while (1)
     {
         uint8_t flight_state = get_flight_state();
-        uint8_t pyro_arm = calc_pyro_arm();
-        pyro_update_state();
+        uint8_t pyro_arm = 0;
+        // pyro_update_state();
 
         primary_baro = atomic_load(&baro);
         primary_baro_vel = atomic_load(&baro_vel);
@@ -224,7 +224,7 @@ void primary_task(void *pvParameters)
         primary_high_g_acc = atomic_load(&high_g_acc);
         primary_gyr = atomic_load(&gyr);
         primary_gps = atomic_load(&gps);
-        batt_voltage = psu_read_battery_voltage();
+        // batt_voltage = psu_read_battery_voltage();
 
         // printf("%f\n", primary_baro.altitude_agl);
 
@@ -367,7 +367,7 @@ void fast_sensor_task(void *pvParameters)
 //MARK: SLOW SENSOR TASK
 // Operates at 20Hz on core 1
 TaskHandle_t slow_sensor_task_handle;
-int slow_sensor_frequency = 20;
+int slow_sensor_frequency = 10;
 TickType_t xFrequency_slow_sensor;
 void slow_sensor_task(void *pvParameters)
 {
@@ -380,8 +380,8 @@ void slow_sensor_task(void *pvParameters)
 
     while(1)
     {
-        poll_gps(&temp_gps);
-        atomic_store(&gps, temp_gps);
+        // poll_gps(&temp_gps);
+        // atomic_store(&gps, temp_gps);
 
         cycle = (cycle + 1) % slow_sensor_frequency;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_slow_sensor);
@@ -458,8 +458,8 @@ void telemetry_task(void *pvParameters)
 
         goober_serialize(latest_header, (uint8_t *)&latest_telemetry, sizeof(latest_telemetry), telemetry_buffer, sizeof(telemetry_buffer), &latest_telemetry_buffer_size);
         
-        uart1_transmit((uint8_t *)&telemetry_buffer, latest_telemetry_buffer_size);
-        uart1_transmit((uint8_t *)"\n\n\n\n", 4);
+        // uart1_transmit((uint8_t *)&telemetry_buffer, latest_telemetry_buffer_size);
+        // uart1_transmit((uint8_t *)"\n\n\n\n", 4);
 
         cycle = (cycle + 1) % telemetry_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_telemetry);
@@ -583,40 +583,40 @@ void app_main(void)
         esp_restart();
     }
 
-    vTaskDelay(pdMS_TO_TICKS(500));
+    // vTaskDelay(pdMS_TO_TICKS(500));
 
-    beep_pyro_cont();
+    // beep_pyro_cont();
 
-    flight_config_init();
-    print_flight_config();
+    // flight_config_init();
+    // print_flight_config();
 
-    flash_print_stats();
-    try_to_dump_data();
+    // flash_print_stats();
+    // try_to_dump_data();
 
     // measure_performance();
     
-    initialize_telemetry_queue();
+    // initialize_telemetry_queue();
 
     #ifdef SIMULATOR // todo: replace w/ debug harness logic
     // Configure USB SERIAL JTAG
-    usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
-        .rx_buffer_size = 1024,
-        .tx_buffer_size = 1024,
-    };
-    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
-    ESP_LOGI("app_main", "USB_SERIAL_JTAG init done");
+    // usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
+    //     .rx_buffer_size = 1024,
+    //     .tx_buffer_size = 1024,
+    // };
+    // ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
+    // ESP_LOGI("app_main", "USB_SERIAL_JTAG init done");
 
-    xTaskCreatePinnedToCore(simulator_task, "simulator_task", SIMULATOR_TASK_STACK_SIZE, NULL, 10, &simulator_task_handle, 1);
+    // xTaskCreatePinnedToCore(simulator_task, "simulator_task", SIMULATOR_TASK_STACK_SIZE, NULL, 10, &simulator_task_handle, 1);
     #endif
 
     // SECONDARY CORE TASKS
-    xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2, &fast_sensor_task_handle, 1);
+    // xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2, &fast_sensor_task_handle, 1);
     xTaskCreatePinnedToCore(slow_sensor_task, "slow_sensor_task", 8192, NULL, 2, &slow_sensor_task_handle, 1);
-    xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 1, &flash_task_handle, 1);
+    // xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 1, &flash_task_handle, 1);
 
     // PRIMARY CORE TASKS
-    xTaskCreatePinnedToCore(telemetry_task, "telemetry_task", 8192, NULL, 1, &telemetry_task_handle, 0);
-    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
+    // xTaskCreatePinnedToCore(telemetry_task, "telemetry_task", 8192, NULL, 1, &telemetry_task_handle, 0);
+    // xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
 
     led_yellow();
     high_beep();high_beep();high_beep(); // success!
