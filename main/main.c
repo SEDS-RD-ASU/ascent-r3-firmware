@@ -131,7 +131,7 @@ esp_err_t flight_initialize_devices(void)
 
     bool is_simulator = false;
     #ifdef SIMULATOR
-    is_simulator = true;
+        is_simulator = true;
     #endif
 
     ret = buzzer_init();
@@ -598,15 +598,15 @@ void app_main(void)
     initialize_telemetry_queue();
 
     #ifdef SIMULATOR // todo: replace w/ debug harness logic
-    // Configure USB SERIAL JTAG
-    usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
-        .rx_buffer_size = 1024,
-        .tx_buffer_size = 1024,
-    };
-    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
-    ESP_LOGI("app_main", "USB_SERIAL_JTAG init done");
+        // Configure USB SERIAL JTAG
+        usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
+            .rx_buffer_size = 1024,
+            .tx_buffer_size = 1024,
+        };
+        ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
+        ESP_LOGI("app_main", "USB_SERIAL_JTAG init done");
 
-    xTaskCreatePinnedToCore(simulator_task, "simulator_task", SIMULATOR_TASK_STACK_SIZE, NULL, 10, &simulator_task_handle, 1);
+        xTaskCreatePinnedToCore(simulator_task, "simulator_task", SIMULATOR_TASK_STACK_SIZE, NULL, 10, &simulator_task_handle, 1);
     #endif
 
     // SECONDARY CORE TASKS
