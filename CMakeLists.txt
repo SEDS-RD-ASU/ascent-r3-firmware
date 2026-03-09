@@ -6,13 +6,14 @@ set(EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/bmp390l"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/comm/i2c"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/comm/spi"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/comm/uart"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/hardware_io/pyro"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/indicator"
-    "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/neopixel"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/patch/adc"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/psu"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/sam_m10q"
     "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/w25qxx"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ascent-r3-drivers/lsm6dsv320x"
     "${CMAKE_CURRENT_SOURCE_DIR}/goober"
 )
 

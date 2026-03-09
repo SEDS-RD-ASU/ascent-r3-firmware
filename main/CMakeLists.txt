@@ -1,9 +1,40 @@
 idf_component_register(
     SRCS
         "main.c"
+        "memory/flash_interface.c"
+        "memory/nvs_interface.c"
+        "memory/serial_util.c"
+        "fsm/flight.c"
+        "sensor/sensor_manager.c"
+        "ble/ble.c"
+        "ble/gatt_svr.c"
+        "ble/misc.c"
+        "command/command.c"
     REQUIRES
         spi_flash
         bmp390l
+        w25qxx
+        nvs_flash
+        goober
+        pyro
+        esp_psram
+        indicator
+        sam_m10q
+        lsm6dsv320x
+        esp_timer
+        esp_driver_gptimer
+        uart
+        spi
+        bt
+        psu
+        adc
+        goober
+        esp_driver_usb_serial_jtag
     INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
+        "memory"
+        "fsm"
+        "sensor"
+        "ble"
+        "command"
 )

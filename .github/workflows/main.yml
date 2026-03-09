@@ -1,0 +1,19 @@
+name: Locally build the esp-idf firmware.
+
+on: [push]
+
+jobs:
+  build_and_flash:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: esp-idf build
+        run: |
+          . $HOME/esp/esp-idf/export.sh
+          idf.py fullclean
+          idf.py build
+      - name: copy compiled binaries into storage
+        run: /home/abdul/actions-runner/copy_firmware_files.sh 
