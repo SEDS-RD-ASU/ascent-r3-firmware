@@ -229,6 +229,7 @@ void primary_task(void *pvParameters)
         // printf("%f\n", primary_baro.altitude_agl);
 
         baro_update(primary_baro, &primary_baro_vel);
+        atomic_store(&baro_vel, primary_baro_vel);
 
         #ifdef DEBUG // DO NOT MERGE THIS SECTION TO FLIGHT BRANCH.
         printf( 
@@ -332,16 +333,15 @@ void primary_task(void *pvParameters)
 //MARK: FAST SENSOR TASK
 // Operates at 100hz on core 1
 TaskHandle_t fast_sensor_task_handle;
-int fast_sensor_task_frequency = 100;
+int fast_sensor_task_frequency = 600;
 TickType_t xFrequency_fast_sensor_task;
 void fast_sensor_task(void *pvParameters)
 {
-    barometer_sample_t temp_baro;
-    barometer_velocity_t temp_baro_vel;
-    acc_sample_t temp_low_g_acc;
-    acc_sample_t temp_high_g_acc;
-    gyr_sample_t temp_gyr;
-    gps_sample_t temp_gps;
+    barometer_sample_t temp_baro = {0};
+    acc_sample_t temp_low_g_acc = {0};
+    acc_sample_t temp_high_g_acc = {0};
+    gyr_sample_t temp_gyr = {0};
+    gps_sample_t temp_gps = {0};
 
     const TickType_t xFrequency_fast_sensor_task = pdMS_TO_TICKS(1000 / fast_sensor_task_frequency);
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -349,10 +349,9 @@ void fast_sensor_task(void *pvParameters)
 
     while(1)
     {
-        poll_sensors(&temp_baro, &temp_baro_vel, &temp_high_g_acc, &temp_low_g_acc, &temp_gyr, &temp_gps);
+        poll_sensors(&temp_baro, &temp_high_g_acc, &temp_low_g_acc, &temp_gyr, &temp_gps);
 
         atomic_store(&baro, temp_baro);
-        atomic_store(&baro_vel, temp_baro_vel);
         atomic_store(&high_g_acc, temp_high_g_acc);
         atomic_store(&low_g_acc, temp_low_g_acc);
         atomic_store(&gyr, temp_gyr);
@@ -480,11 +479,11 @@ void simulator_task(void *pvParameters)
     uint8_t accum_buf[SIMULATOR_BUF_SIZE];
     int accum_len = 0;
     
-    barometer_sample_t temp_baro;
-    barometer_velocity_t temp_baro_vel;
-    acc_sample_t temp_low_g_acc;
-    acc_sample_t temp_high_g_acc;
-    gyr_sample_t temp_gyr;
+    barometer_sample_t temp_baro = {0};
+    barometer_velocity_t temp_baro_vel = {0};
+    acc_sample_t temp_low_g_acc = {0};
+    acc_sample_t temp_high_g_acc = {0};
+    gyr_sample_t temp_gyr = {0};
     gps_sample_t temp_gps = {
         .lat = 99,
         .lon = 99

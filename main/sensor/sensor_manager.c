@@ -215,7 +215,7 @@ void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel)
     baro_vel->average_velocity = average_barometric_velocity;
 }
 
-void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel, acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr, gps_sample_t *gps)
+void poll_sensors(barometer_sample_t *pBaro, acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr, gps_sample_t *gps)
 {
     if (barometer_data_ready) {
         poll_baro(pBaro);

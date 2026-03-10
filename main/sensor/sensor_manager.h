@@ -15,6 +15,7 @@
 #include "interface_bmp390l.h"
 #include "interface_sam_m10q.h"
 #include "interface_LSM6DSV320X.h"
+#include "esp_timer.h"
 
 typedef struct {
     int64_t timestamp;
@@ -62,7 +63,7 @@ typedef struct {
 
 esp_err_t initialize_sensors(bool simulator);
 
-void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel, acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr, gps_sample_t *gps);
+void poll_sensors(barometer_sample_t *pBaro, acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr, gps_sample_t *gps);
 
 void barometer_int_callback(void *args);
 
