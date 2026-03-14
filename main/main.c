@@ -195,7 +195,7 @@ void beep_pyro_cont(void) {
 //MARK: PRIMARY TASK
 // Will be running at 50Hz on the primary core.
 TaskHandle_t primary_task_handle;
-int primary_loop_fq = 50;
+int primary_loop_fq = 100;
 TickType_t xFrequency_primary;
 void primary_task(void *pvParameters)
 {
@@ -391,7 +391,7 @@ void slow_sensor_task(void *pvParameters)
 //MARK: FLASH TASK
 // Operates at 60hz on core 1
 TaskHandle_t flash_task_handle;
-int flash_task_frequency = 60;
+int flash_task_frequency = 120;
 TickType_t xFrequency_flash_task;
 void flash_task(void *pvParameters)
 {
@@ -405,7 +405,7 @@ void flash_task(void *pvParameters)
     {
         flight_state = get_flight_state();
 
-        if (flight_state >FS_ON_PAD && flight_state != FS_LANDED) {
+        if (is_tx_lock()) {
             flash_write_queue(12500);
         }
 

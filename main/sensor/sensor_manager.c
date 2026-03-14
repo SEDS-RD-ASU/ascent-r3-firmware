@@ -168,7 +168,7 @@ static esp_err_t poll_imu(acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_
 // MARK: BAROMETRIC VELOCITY CALCULATION
 #define HISTORY_SIZE 3
 #define VELOCITY_HISTORY_SIZE 10
-#define DT 0.02f // 50hz or 20ms intervals
+#define DT 0.01f // 100hz or 10ms intervals
 
 static float barometric_agl;
 static float barometric_velocity;
