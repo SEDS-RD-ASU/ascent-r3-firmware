@@ -10,6 +10,9 @@ idf_component_register(
         "ble/gatt_svr.c"
         "ble/misc.c"
         "command/command.c"
+        "tasks/flight_tasks.c"
+        "tasks/util_tasks.c"
+        "debug_modes/mode_manager.c"
     REQUIRES
         spi_flash
         bmp390l
@@ -37,4 +40,6 @@ idf_component_register(
         "sensor"
         "ble"
         "command"
+        "tasks"
+        "debug_modes"
 )
