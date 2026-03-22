@@ -7,6 +7,8 @@
 #include <ascent_r3_hardware_definition.h>
 #include "beep.h"
 
+#define MODE_BTN_PIN GPIO_NUM_0
+
 // Current mode bitmask
 // b0 = debug mode
 // b1 = simulator mode
@@ -18,7 +20,7 @@ int last_press = 0;
 esp_err_t initialize_mode_button(void)
 {
     gpio_config_t io_conf = {
-        .pin_bit_mask = (1ULL << GPIO_NUM_0),
+        .pin_bit_mask = (1ULL << MODE_BTN_PIN),
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
