@@ -53,6 +53,7 @@ _Atomic acc_sample_t low_g_acc;
 _Atomic acc_sample_t high_g_acc;
 _Atomic gyr_sample_t gyr;
 _Atomic gps_sample_t gps;
+_Atomic double batt_voltage;
 
 //MARK: TESTING UTILITIES.
 //REMOVE THESE BEFORE MERGING TO FLIGHT BRANCH.
@@ -80,9 +81,59 @@ void measure_performance()
     const unsigned MEASUREMENTS = 1000;
 
     gptimer_get_raw_count(gptimer, &times);
+
+    barometer_sample_t temp_baro = {0};
+    acc_sample_t temp_low_g_acc = {0};
+    acc_sample_t temp_high_g_acc = {0};
+    gyr_sample_t temp_gyr = {0};
+    gps_sample_t temp_gps = {0};
     
     for (int retries = 0; retries < MEASUREMENTS; retries++) {
-        // replace w/ function to measure!
+        poll_sensors(&temp_baro, &temp_high_g_acc, &temp_low_g_acc, &temp_gyr, &temp_gps);
+
+        atomic_store(&baro, temp_baro);
+        atomic_store(&high_g_acc, temp_high_g_acc);
+        atomic_store(&low_g_acc, temp_low_g_acc);
+        atomic_store(&gyr, temp_gyr);
+
+        temp_gps = atomic_load(&gps);
+
+        flash_packet primary_flash_packet = {
+            .n = 0,
+            .timestamp = esp_timer_get_time(),
+            .bat_voltage = atomic_load(&batt_voltage),
+            .flight_state = get_flight_state(),
+            .pyro_cont = 0, // TODO: REPLACE WITH ACTUAL PYRO LOGIC. FOR DAQ WE DON'T CARE RN.
+            
+            .pressure = temp_baro.pressure,
+            .temperature = temp_baro.temperature,
+            .altitude_agl = temp_baro.altitude_agl,
+            .ground_altitude = temp_baro.ground_altitude,
+            .baro_vel = 0, // DAQ does not care about baro vel
+            .avg_baro_vel = 0, // DAQ does not care about baro vel
+            
+            .UTCtstamp = temp_gps.UTCtstamp,
+            .lat = temp_gps.lat,
+            .lon = temp_gps.lon,
+            .altitude_ellipsoid = temp_gps.altitude_ellipsoid,
+            .altitude_msl = temp_gps.altitude_msl,
+            .fixType = temp_gps.fixType,
+            .num_sats = temp_gps.num_sats,
+
+            .acc_x = temp_low_g_acc.acc_x,
+            .acc_y = temp_low_g_acc.acc_y,
+            .acc_z = temp_low_g_acc.acc_z,
+
+            .hacc_x = temp_high_g_acc.acc_x,
+            .hacc_y = temp_high_g_acc.acc_y,
+            .hacc_z = temp_high_g_acc.acc_z,
+
+            .gyr_x = temp_gyr.gyr_x,
+            .gyr_y = temp_gyr.gyr_y,
+            .gyr_z = temp_gyr.gyr_z,
+        };
+
+        flash_queue_packet(&primary_flash_packet);
     }
 
     gptimer_get_raw_count(gptimer, &timef);
@@ -210,13 +261,12 @@ void primary_task(void *pvParameters)
     acc_sample_t primary_high_g_acc;
     gyr_sample_t primary_gyr;
     gps_sample_t primary_gps;
-    double batt_voltage = 0;
 
     while (1)
     {
         uint8_t flight_state = get_flight_state();
-        uint8_t pyro_arm = calc_pyro_arm();
-        pyro_update_state();
+        // uint8_t pyro_arm = calc_pyro_arm(); // Disabled for DAQ
+        // pyro_update_state();
 
         primary_baro = atomic_load(&baro);
         primary_baro_vel = atomic_load(&baro_vel);
@@ -224,7 +274,6 @@ void primary_task(void *pvParameters)
         primary_high_g_acc = atomic_load(&high_g_acc);
         primary_gyr = atomic_load(&gyr);
         primary_gps = atomic_load(&gps);
-        batt_voltage = psu_read_battery_voltage();
 
         // printf("%f\n", primary_baro.altitude_agl);
 
@@ -262,66 +311,6 @@ void primary_task(void *pvParameters)
             primary_gps.num_sats);
         #endif
 
-        flash_packet primary_flash_packet = {
-            .n = 0,
-            .timestamp = esp_timer_get_time(),
-            .bat_voltage = batt_voltage,
-            .flight_state = flight_state,
-            .pyro_cont = 0, // TODO: REPLACE WITH ACTUAL PYRO LOGIC. FOR DAQ WE DON'T CARE RN.
-            
-            .pressure = primary_baro.pressure,
-            .temperature = primary_baro.temperature,
-            .altitude_agl = primary_baro.altitude_agl,
-            .ground_altitude = primary_baro.ground_altitude,
-            .baro_vel = primary_baro_vel.velocity,
-            .avg_baro_vel = primary_baro_vel.average_velocity,
-            
-            .UTCtstamp = primary_gps.UTCtstamp,
-            .lat = primary_gps.lat,
-            .lon = primary_gps.lon,
-            .altitude_ellipsoid = primary_gps.altitude_ellipsoid,
-            .altitude_msl = primary_gps.altitude_msl,
-            .fixType = primary_gps.fixType,
-            .num_sats = primary_gps.num_sats,
-
-            .acc_x = primary_low_g_acc.acc_x,
-            .acc_y = primary_low_g_acc.acc_y,
-            .acc_z = primary_low_g_acc.acc_z,
-
-            .hacc_x = primary_high_g_acc.acc_x,
-            .hacc_y = primary_high_g_acc.acc_y,
-            .hacc_z = primary_high_g_acc.acc_z,
-
-            .gyr_x = primary_gyr.gyr_x,
-            .gyr_y = primary_gyr.gyr_y,
-            .gyr_z = primary_gyr.gyr_z,
-        };
-
-        flash_queue_packet(&primary_flash_packet);
-
-        ascent_telemetry_t latest_telemetry_payload = {
-            .timestamp = esp_timer_get_time() / 1000, // convert us to ms
-            .latitude = primary_gps.lat,
-            .longitude = primary_gps.lon,
-            .altitude_agl = primary_baro.altitude_agl,
-            .vertical_velocity = primary_baro_vel.velocity,
-            .y_acc = primary_low_g_acc.acc_y,
-            .gyr_y = primary_gyr.gyr_y,
-            .pyro_state = pyro_arm,
-            .sats = primary_gps.num_sats,
-            .flight_state = flight_state,
-            .battery_voltage = (uint16_t)(batt_voltage * 2500),
-        };
-
-        queueLatestTelemetry(&latest_telemetry_payload);
-
-        if (flight_state > FS_ON_PAD && flight_state != FS_LANDED) // if we are in the air, basically
-        {
-            // printf("I am flying!!!\n");
-        } else {
-            // Do something while not flying
-        }
-
         flight_update(primary_baro.altitude_agl, primary_baro_vel.velocity, primary_baro_vel.average_velocity, primary_low_g_acc.acc_y);
         
         cycle = (cycle + 1) % primary_loop_fq;
@@ -331,9 +320,9 @@ void primary_task(void *pvParameters)
 
 
 //MARK: FAST SENSOR TASK
-// Operates at 100hz on core 1
+// Operates at 400hz on core 1
 TaskHandle_t fast_sensor_task_handle;
-int fast_sensor_task_frequency = 600;
+int fast_sensor_task_frequency = 400;
 TickType_t xFrequency_fast_sensor_task;
 void fast_sensor_task(void *pvParameters)
 {
@@ -355,11 +344,51 @@ void fast_sensor_task(void *pvParameters)
         atomic_store(&high_g_acc, temp_high_g_acc);
         atomic_store(&low_g_acc, temp_low_g_acc);
         atomic_store(&gyr, temp_gyr);
-        // atomic_store(&gps, temp_gps); MOVED TO SLOW SENSOR TASK
+
+        // temp_gps = atomic_load(&gps);
+
+        flash_packet primary_flash_packet = {
+            .n = 0,
+            .timestamp = esp_timer_get_time(),
+            .bat_voltage = atomic_load(&batt_voltage),
+            .flight_state = get_flight_state(),
+            .pyro_cont = 0, // TODO: REPLACE WITH ACTUAL PYRO LOGIC. FOR DAQ WE DON'T CARE RN.
+            
+            .pressure = temp_baro.pressure,
+            .temperature = temp_baro.temperature,
+            .altitude_agl = temp_baro.altitude_agl,
+            .ground_altitude = temp_baro.ground_altitude,
+            .baro_vel = 0, // DAQ does not care about baro vel
+            .avg_baro_vel = 0, // DAQ does not care about baro vel
+            
+            .UTCtstamp = temp_gps.UTCtstamp,
+            .lat = temp_gps.lat,
+            .lon = temp_gps.lon,
+            .altitude_ellipsoid = temp_gps.altitude_ellipsoid,
+            .altitude_msl = temp_gps.altitude_msl,
+            .fixType = temp_gps.fixType,
+            .num_sats = temp_gps.num_sats,
+
+            .acc_x = temp_low_g_acc.acc_x,
+            .acc_y = temp_low_g_acc.acc_y,
+            .acc_z = temp_low_g_acc.acc_z,
+
+            .hacc_x = temp_high_g_acc.acc_x,
+            .hacc_y = temp_high_g_acc.acc_y,
+            .hacc_z = temp_high_g_acc.acc_z,
+
+            .gyr_x = temp_gyr.gyr_x,
+            .gyr_y = temp_gyr.gyr_y,
+            .gyr_z = temp_gyr.gyr_z,
+        };
+
+        flash_queue_packet(&primary_flash_packet);
 
         cycle = (cycle + 1) % fast_sensor_task_frequency;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_fast_sensor_task);
     }
+
+    
 }
 
 
@@ -381,6 +410,7 @@ void slow_sensor_task(void *pvParameters)
     {
         poll_gps(&temp_gps);
         atomic_store(&gps, temp_gps);
+        atomic_store(&batt_voltage, psu_read_battery_voltage());
 
         cycle = (cycle + 1) % slow_sensor_frequency;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_slow_sensor);
@@ -391,7 +421,7 @@ void slow_sensor_task(void *pvParameters)
 //MARK: FLASH TASK
 // Operates at 60hz on core 1
 TaskHandle_t flash_task_handle;
-int flash_task_frequency = 120;
+int flash_task_frequency = 500;
 TickType_t xFrequency_flash_task;
 void flash_task(void *pvParameters)
 {
@@ -406,7 +436,7 @@ void flash_task(void *pvParameters)
         flight_state = get_flight_state();
 
         if (is_tx_lock()) {
-            flash_write_queue(12500);
+            flash_write_queue(1500);
         }
 
         cycle = (cycle + 1) % flash_task_frequency;
@@ -584,7 +614,7 @@ void app_main(void)
 
     vTaskDelay(pdMS_TO_TICKS(500));
 
-    beep_pyro_cont();
+    // beep_pyro_cont();
 
     flight_config_init();
     print_flight_config();
@@ -594,7 +624,7 @@ void app_main(void)
 
     // measure_performance();
     
-    initialize_telemetry_queue();
+    // initialize_telemetry_queue(); // Disabled for DAQ
 
     #ifdef SIMULATOR // todo: replace w/ debug harness logic
         // Configure USB SERIAL JTAG
@@ -610,11 +640,12 @@ void app_main(void)
 
     // SECONDARY CORE TASKS
     xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2, &fast_sensor_task_handle, 1);
-    xTaskCreatePinnedToCore(slow_sensor_task, "slow_sensor_task", 8192, NULL, 2, &slow_sensor_task_handle, 1);
-    xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 1, &flash_task_handle, 1);
+    
 
-    // PRIMARY CORE TASKS
-    xTaskCreatePinnedToCore(telemetry_task, "telemetry_task", 8192, NULL, 1, &telemetry_task_handle, 0);
+    // // PRIMARY CORE TASKS
+    // xTaskCreatePinnedToCore(telemetry_task, "telemetry_task", 8192, NULL, 1, &telemetry_task_handle, 0); // Disabled for DAQ
+    xTaskCreatePinnedToCore(slow_sensor_task, "slow_sensor_task", 8192, NULL, 2, &slow_sensor_task_handle, 0);
+    xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 1, &flash_task_handle, 0);
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
 
     led_yellow();
