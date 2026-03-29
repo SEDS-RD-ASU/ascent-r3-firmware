@@ -21,13 +21,14 @@
 
 #include "beep.h"
 #include "driver_buzzer.h"
+#include "onboard_led.h"
 
 static const char *TAG = "FLASH INTERFACE";
 
 #define MAX_SECTORS 16384
 #define SECTOR_SIZE 4096
 
-#define BANKS 4
+#define BANKS 1
 #define BANK_SIZE (MAX_SECTORS * SECTOR_SIZE / BANKS)
 #define SECTORS_IN_BANK (MAX_SECTORS / BANKS)
 
@@ -243,14 +244,39 @@ void flash_dump_to_serial(int bank) {
 }
 
 void flash_write_packet(flash_packet *packet) {
-    if (addr >= current_bank*BANK_SIZE + BANK_SIZE) {
+    uint32_t bank_start = current_bank * BANK_SIZE;
+    uint32_t bank_end   = bank_start + BANK_SIZE;
+    uint32_t stop_addr  = bank_start + (uint32_t)(BANK_SIZE * 0.95f);
+    static bool led_triggered = false;
+
+    if (addr >= stop_addr) {
+        if (!led_triggered) {
+            led_red();
+            led_triggered = true;
+        }
+        printf("FLASH 95%% FULL, PACKET DROPPED\n");
+        return;
+    }
+
+    if (addr >= bank_end) {
+        if (!led_triggered) {
+            led_red();
+            led_triggered = true;
+        }
         printf("BANK OVER RUN, FLASH PACKET LOST\n");
+        return;
     }
 
     w25qxx_write(addr, (uint8_t*) packet, sizeof(flash_packet));
     addr += sizeof(flash_packet);
 
-    nvs_set_i32(my_handle, bank_keys[current_bank], addr-(current_bank*BANK_SIZE));
+    // Only update NVS every 100 packets to avoid per-write stalls (nvs_set_i32
+    // can block for 10-100ms when it triggers an internal page erase).
+    static uint32_t nvs_write_counter = 0;
+    if (++nvs_write_counter >= 100) {
+        nvs_write_counter = 0;
+        nvs_set_i32(my_handle, bank_keys[current_bank], addr-(current_bank*BANK_SIZE));
+    }
 }
 
 void flash_queue_packet(flash_packet *packet) {
@@ -264,7 +290,7 @@ void flash_queue_packet(flash_packet *packet) {
         
         if (xQueueSendToBack(flash_packet_queue, packet, 1) != pdTRUE) {
             // vTaskDelay(pdMS_TO_TICKS(1)); 
-            printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
+            // printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
         }
         // printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
     }
@@ -313,7 +339,7 @@ void flash_blank_slate() {
 }
 
 void try_to_dump_data() {
-    printf("You have 5 seconds to enter \"DUMP\" to enter data dumping mode\n");
+    printf("You have 5 seconds to enter \"DUMP\", \"ERASE\", or \"NUCLEAR\"...\n");
     vTaskDelay(5000 / portTICK_PERIOD_MS);
     char buf[512];
     int i = 0;
@@ -329,6 +355,32 @@ void try_to_dump_data() {
                         vTaskDelay(pdMS_TO_TICKS(500));
                     }
                 }
+            }
+        } else if (strcmp("ERASE", buf) == 0) {
+            flash_blank_slate();
+            printf("System will now restart...\n");
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            esp_restart();
+        } else if (strcmp("NUCLEAR", buf) == 0) {
+            int time_spent = 0;
+            printf("WARNING: This will erase all NVS data including flight configs! Type \"YES\" to confirm (Timeout: 10s):\n");
+            while (time_spent < 10) {
+                if (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
+                    if (strcmp("YES", buf) == 0) {
+                        printf("Erasing NVS...\n");
+                        nvs_flash_erase();
+                        printf("Done. System will now restart...\n");
+                        vTaskDelay(1000 / portTICK_PERIOD_MS);
+                        esp_restart();
+                    } else {
+                        printf("Aborting NUCLEAR operation.\n");
+                    }
+                    break;
+                }
+                time_spent++;
+            }
+            if (time_spent >= 10) {
+                printf("NUCLEAR operation timed out.\n");
             }
         }
     }
