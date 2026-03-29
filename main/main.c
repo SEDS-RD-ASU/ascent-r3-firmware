@@ -320,9 +320,9 @@ void primary_task(void *pvParameters)
 
 
 //MARK: FAST SENSOR TASK
-// Operates at 400hz on core 1
+// Operates at 500hz on core 1
 TaskHandle_t fast_sensor_task_handle;
-int fast_sensor_task_frequency = 400;
+int fast_sensor_task_frequency = 500;
 TickType_t xFrequency_fast_sensor_task;
 void fast_sensor_task(void *pvParameters)
 {

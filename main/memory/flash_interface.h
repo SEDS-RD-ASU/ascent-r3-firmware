@@ -34,7 +34,7 @@ typedef struct {
     float acc_y;
     float acc_z;
 
-    //acc_sample_t
+    //acc_sample_t (high-g)
     float hacc_x;
     float hacc_y;
     float hacc_z;
@@ -50,19 +50,15 @@ uint32_t flash_get_addr();
 
 esp_err_t flash_flight_init(void);
 
-bool flash_erase_next_bank_no_advance(int64_t max_time, int32_t* resume);
-
 bool flash_prepare_for_flight(void);
 
-void flash_dump_to_serial(int bank);
+void flash_dump_to_serial(void);
 
 void flash_write_packet(flash_packet *packet);
 
 void flash_queue_packet(flash_packet *packet);
 
 void flash_write_queue(int64_t max_time);
-
-int32_t flash_get_last_used_bank();
 
 void flash_print_stats();
 
@@ -71,7 +67,5 @@ void flash_blank_slate();
 void try_to_dump_data();
 
 void flash_erase_jingle(void);
-
-void print_flash_packet(flash_packet *fp);
 
 #endif
