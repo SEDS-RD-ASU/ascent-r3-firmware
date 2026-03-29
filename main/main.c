@@ -56,7 +56,6 @@ _Atomic gps_sample_t gps;
 _Atomic double batt_voltage;
 
 //MARK: TESTING UTILITIES.
-//REMOVE THESE BEFORE MERGING TO FLIGHT BRANCH.
 void measure_performance()
 {
     uint64_t times = 0;
@@ -244,7 +243,7 @@ void beep_pyro_cont(void) {
 }
 
 //MARK: PRIMARY TASK
-// Will be running at 50Hz on the primary core.
+// Will be running at 100Hz on the primary core.
 TaskHandle_t primary_task_handle;
 int primary_loop_fq = 100;
 TickType_t xFrequency_primary;
@@ -648,7 +647,7 @@ void app_main(void)
     xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 1, &flash_task_handle, 0);
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
 
-    led_yellow();
+    led_teal();
     high_beep();high_beep();high_beep(); // success!
 
 }
