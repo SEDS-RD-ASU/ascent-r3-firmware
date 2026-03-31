@@ -101,7 +101,12 @@ float drag_coefficient(float t)
         dt = t - 19.993f;
         return -0.000216905f*dt*dt*dt + 0.00175131f*dt*dt + 0.00163811f*dt + 0.798746f;
     }
-    /* Segment 20: 22.492 <= t < 24.990 (clamp beyond upper bound) */
-    dt = t - 22.492f;
+    /* Segment 20: 22.492 <= t < 24.990 */
+    if (t < 24.990f) {
+        dt = t - 22.492f;
+        return -0.000216905f*dt*dt*dt + 0.000125301f*dt*dt + 0.00632741f*dt + 0.81039f;
+    }
+    /* Beyond upper bound: clamp to value at t = 24.990 */
+    dt = 24.990f - 22.492f;
     return -0.000216905f*dt*dt*dt + 0.000125301f*dt*dt + 0.00632741f*dt + 0.81039f;
 }

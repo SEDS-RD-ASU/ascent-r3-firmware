@@ -693,6 +693,7 @@ void app_main(void)
 
     // SECONDARY CORE TASKS
     xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2, &fast_sensor_task_handle, 1);
+    xTaskCreatePinnedToCore(airbrakes_controller_task, "airbrakes_controller_task", 8192, NULL, 2, &airbrakes_controller_task_handle, 1);
 
 
     // PRIMARY CORE TASKS
