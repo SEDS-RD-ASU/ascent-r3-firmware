@@ -43,6 +43,11 @@
 //TELEMETRY
 #include "goober.h"
 
+//AIRBRAKES
+#include "airbrakes_controller.h"
+#include "drag_coefficient.h"
+#include "irec_rocket_mass.h"
+
 // #define DEBUG
 // #define SIMULATOR
 
@@ -53,10 +58,12 @@ _Atomic acc_sample_t low_g_acc;
 _Atomic acc_sample_t high_g_acc;
 _Atomic gyr_sample_t gyr;
 _Atomic gps_sample_t gps;
+
+//AIRBRAKES GLOBALS
+_Atomic int64_t liftoff_timestamp;
 _Atomic double batt_voltage;
 
 //MARK: TESTING UTILITIES.
-//REMOVE THESE BEFORE MERGING TO FLIGHT BRANCH.
 void measure_performance()
 {
     uint64_t times = 0;
@@ -211,6 +218,9 @@ void primary_task(void *pvParameters)
     acc_sample_t primary_high_g_acc;
     gyr_sample_t primary_gyr;
     gps_sample_t primary_gps;
+    double batt_voltage = 0;
+
+    bool lifted_off = false;
 
     while (1)
     {
@@ -284,6 +294,11 @@ void primary_task(void *pvParameters)
             // printf("I am flying!!!\n");
         } else {
             // Do something while not flying
+        }
+
+        if (flight_state > FS_ON_PAD && !lifted_off) { // one-time flag to set the liftoff timestamp
+            lifted_off = true;
+            atomic_store(&liftoff_timestamp, primary_baro.timestamp);
         }
 
         flight_update(primary_baro.altitude_agl, primary_baro_vel.velocity, primary_baro_vel.average_velocity, primary_low_g_acc.acc_y);
@@ -561,6 +576,70 @@ void simulator_task(void *pvParameters)
     }
 }
 
+
+//MARK: AIRBRAKES CONTROLLER TASK
+TaskHandle_t airbrakes_controller_task_handle;
+int airbrakes_controller_task_frequency = 100;
+TickType_t xFrequency_airbrakes_controller_task;
+void airbrakes_controller_task(void *pvParameters)
+{
+    const TickType_t xFrequency_airbrakes_controller_task = pdMS_TO_TICKS(1000 / airbrakes_controller_task_frequency);
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    uint32_t cycle = 0;
+
+    physics_state_t current_physics_state = {
+        .def = 0,
+        .vel = 0,
+        .altitude_agl = 0,
+        .elevation = 0,
+        .m = 0,
+        .cd = 0
+    };
+
+    controller_state_t current_controller_state = {
+        .t = 0,
+        .def = 0
+    };
+
+    barometer_sample_t current_barometer_sample = {0};
+    barometer_velocity_t current_barometer_velocity = {0};
+
+    float time = 0;
+    int64_t local_liftoff_ts = 0;
+
+    current_physics_state.m = irec_rocket_mass(0);
+    current_physics_state.cd = drag_coefficient(0);
+
+    while(1)
+    {
+        cycle = (cycle + 1) % airbrakes_controller_task_frequency;
+
+        if (!local_liftoff_ts) {
+            local_liftoff_ts = atomic_load(&liftoff_timestamp);
+        }
+
+        if (local_liftoff_ts) {
+            time = (float)(esp_timer_get_time() - local_liftoff_ts) / 1000000.0f;
+        }
+
+        current_physics_state.cd = drag_coefficient(time);
+        current_physics_state.m = irec_rocket_mass(time);
+
+        current_barometer_sample = atomic_load(&baro);
+        current_barometer_velocity = atomic_load(&baro_vel);
+
+        current_physics_state.altitude_agl = current_barometer_sample.altitude_agl;
+        current_physics_state.elevation = current_barometer_sample.ground_altitude;
+        current_physics_state.vel = current_barometer_velocity.average_velocity;
+
+        if(local_liftoff_ts) {
+            printf("time: %f | mass: %f | cd: %f | vel: %f | alt: %f | elevation: %f\n", time, current_physics_state.m, current_physics_state.cd, current_physics_state.vel, current_physics_state.altitude_agl, current_physics_state.elevation);
+        }
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency_airbrakes_controller_task);
+    }
+}
+
 //MARK: ENTRY POINT
 void app_main(void)
 {
@@ -615,11 +694,12 @@ void app_main(void)
     // SECONDARY CORE TASKS
     xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2, &fast_sensor_task_handle, 1);
 
+
     // PRIMARY CORE TASKS
     xTaskCreatePinnedToCore(telemetry_task, "telemetry_task", 8192, NULL, 1, &telemetry_task_handle, 0);
+    xTaskCreatePinnedToCore(slow_sensor_task, "slow_sensor_task", 8192, NULL, 2, &slow_sensor_task_handle, 0);
     xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 1, &flash_task_handle, 0);
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
-    xTaskCreatePinnedToCore(slow_sensor_task, "slow_sensor_task", 8192, NULL, 1, &slow_sensor_task_handle, 0);
 
     led_yellow();
     high_beep();high_beep();high_beep(); // success!

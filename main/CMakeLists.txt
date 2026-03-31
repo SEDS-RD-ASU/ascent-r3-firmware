@@ -10,6 +10,9 @@ idf_component_register(
         "ble/gatt_svr.c"
         "ble/misc.c"
         "command/command.c"
+        "airbrakes/airbrakes_controller.c"
+        "airbrakes/drag_coefficient.c"
+        "airbrakes/irec_rocket_mass.c"
     REQUIRES
         spi_flash
         bmp390l
@@ -37,4 +40,5 @@ idf_component_register(
         "sensor"
         "ble"
         "command"
+        "airbrakes"
 )

@@ -22,7 +22,7 @@ void flight_config_init(void) {
     if (nvs_retreive_flight_config(&cfg) != ESP_OK) {
         cfg = (flight_config_t){
             .lift_off_acceleration_threshold = 9.81*3,
-            .lift_off_tick_count = 5,
+            .lift_off_tick_count = 5    ,
             .apogee_acceleration_threshold = 9.81/2,
             .apogee_tick_count = 5,
             .burnout_acceleration_threshold = 0,
