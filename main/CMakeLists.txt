@@ -13,6 +13,7 @@ idf_component_register(
         "airbrakes/airbrakes_controller.c"
         "airbrakes/drag_coefficient.c"
         "airbrakes/irec_rocket_mass.c"
+        "airbrakes/pid.c"
     REQUIRES
         spi_flash
         bmp390l

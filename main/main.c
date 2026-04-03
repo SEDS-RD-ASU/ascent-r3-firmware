@@ -47,6 +47,7 @@
 #include "airbrakes_controller.h"
 #include "drag_coefficient.h"
 #include "irec_rocket_mass.h"
+#include "pid.h"
 
 // #define DEBUG
 // #define SIMULATOR
@@ -587,6 +588,16 @@ void airbrakes_controller_task(void *pvParameters)
     TickType_t xLastWakeTime = xTaskGetTickCount();
     uint32_t cycle = 0;
 
+    PIDController airbrakes_pid = {
+        .kp = -0.0026f,
+        .ki = -0.0015f,
+        .kd = -0.015f,
+        .T = (float)xFrequency_airbrakes_controller_task / 1000.0f, // convert ticks to seconds
+        .limit_max = 1.0f,
+        .limit_min = 0.0f
+    };
+    init_pid(&airbrakes_pid);
+
     physics_state_t current_physics_state = {
         .def = 0,
         .vel = 0,
@@ -610,6 +621,12 @@ void airbrakes_controller_task(void *pvParameters)
     current_physics_state.m = irec_rocket_mass(0);
     current_physics_state.cd = drag_coefficient(0);
 
+    float apogee_prediction = PredictApogee(current_physics_state.m, current_physics_state.altitude_agl, current_physics_state.elevation, current_physics_state.vel, current_physics_state.def);
+    float previous_apogee_prediction = apogee_prediction;
+
+    float error_moving_average = 0.0f;
+    bool error_moving_average_initialized = false;
+
     while(1)
     {
         cycle = (cycle + 1) % airbrakes_controller_task_frequency;
@@ -631,6 +648,34 @@ void airbrakes_controller_task(void *pvParameters)
         current_physics_state.altitude_agl = current_barometer_sample.altitude_agl;
         current_physics_state.elevation = current_barometer_sample.ground_altitude;
         current_physics_state.vel = current_barometer_velocity.average_velocity;
+
+        // Apogee prediction
+        previous_apogee_prediction = apogee_prediction;
+        apogee_prediction = PredictApogee(current_physics_state.m, current_physics_state.altitude_agl, current_physics_state.elevation, current_physics_state.vel, current_physics_state.def);
+
+        // Determine current error
+        float current_error = apogee_prediction - 3045.06699147f; // target apogee in meters (10,000 feet)
+        if (low_g_acc.acc_z < 10 || high_g_acc.acc_z < 10) {
+            current_error = 0;
+        }
+
+        if (current_error >= 0 && current_error <= 12) {
+            current_error = 0;
+        }
+
+        // Moving average filter on error
+        if (!error_moving_average_initialized) {
+            error_moving_average = current_error;
+            error_moving_average_initialized = true;
+        } else {
+            error_moving_average = 0.985f * error_moving_average + 0.15f * current_error;
+        }
+
+        float deflection = update_pid(&airbrakes_pid, error_moving_average);
+        current_controller_state.def = deflection;
+        printf("time: %f | alt_agl: %f | apogee_pred: %f | error: %f | deflection: %f\n",
+            time, current_physics_state.altitude_agl, apogee_prediction, current_error, deflection);
+
 
         if(local_liftoff_ts) {
             printf("time: %f | mass: %f | cd: %f | vel: %f | alt: %f | elevation: %f\n", time, current_physics_state.m, current_physics_state.cd, current_physics_state.vel, current_physics_state.altitude_agl, current_physics_state.elevation);
