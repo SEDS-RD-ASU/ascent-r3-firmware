@@ -149,9 +149,13 @@ static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t *resume) {
     int64_t start = esp_timer_get_time();
 
     printf("Erasing bank: %d\n", bank);
-    int32_t used_bytes;
+
+    // Always erase the full bank — NVS wear-levelling byte counts may be
+    // stale (throttled writes). Only skip erasure entirely when NVS
+    // explicitly records 0 bytes, meaning the bank is known-empty.
+    int32_t used_bytes = 0;
     nvs_get_i32(my_handle, bank_keys[bank], &used_bytes);
-    int32_t used = (used_bytes + SECTOR_SIZE - 1)/SECTOR_SIZE;
+    int32_t sectors_to_erase = (used_bytes == 0) ? 0 : SECTORS_IN_BANK;
 
     static uint32_t i;
     if (max_time == 0) i = 0;
@@ -164,14 +168,14 @@ static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t *resume) {
 
     bool should_stop = ((esp_timer_get_time() - start) >= max_time);
     if (max_time == 0) should_stop = false;
-    while (!should_stop && i < used) {
+    while (!should_stop && i < (uint32_t)sectors_to_erase) {
         w25qxx_sector_erase((base+i)*SECTOR_SIZE);
-        printf("%f\n", (float) i / (float) used);
+        printf("%f\n", (float) i / (float) sectors_to_erase);
 
         i++;
     }
 
-    if(i >= used) {
+    if(i >= (uint32_t)sectors_to_erase) {
         nvs_set_i32(my_handle, bank_keys[bank], 0);
         *resume = -1;
         return ESP_OK;
@@ -250,7 +254,22 @@ void flash_write_packet(flash_packet *packet) {
     w25qxx_write(addr, (uint8_t*) packet, sizeof(flash_packet));
     addr += sizeof(flash_packet);
 
-    nvs_set_i32(my_handle, bank_keys[current_bank], addr-(current_bank*BANK_SIZE));
+    static uint32_t nvs_write_counter = 0;
+    static int32_t nvs_last_bank = -1;
+
+    // Always commit on the very first packet of a new bank so that
+    // flash_erase_bank can see data even if fewer than 2500 packets
+    // are written (e.g. a short flight or an unexpected power loss).
+    bool first_packet_of_bank = (nvs_last_bank != current_bank);
+    if (first_packet_of_bank) {
+        nvs_last_bank = current_bank;
+        nvs_write_counter = 0;
+    }
+
+    if (first_packet_of_bank || ++nvs_write_counter >= 2500) {
+        nvs_set_i32(my_handle, bank_keys[current_bank], addr-(current_bank*BANK_SIZE));
+        nvs_write_counter = 0;
+    }
 }
 
 void flash_queue_packet(flash_packet *packet) {

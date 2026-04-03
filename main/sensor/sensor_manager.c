@@ -219,7 +219,7 @@ void poll_sensors(barometer_sample_t *pBaro, acc_sample_t *high_g, acc_sample_t 
 {
     if (barometer_data_ready) {
         poll_baro(pBaro);
-        barometer_data_ready = false;
+        barometer_data_ready = true; // Temporarily disabled interrupt reset for preformance testing
         if(simulator)
         {
             barometer_data_ready = true;
