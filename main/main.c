@@ -420,9 +420,9 @@ void flash_task(void *pvParameters)
 
 
 //MARK: TELEMETRY TASK
-// Operates at 60hz on the primary core
+// Operates at 1hz on the primary core
 TaskHandle_t telemetry_task_handle;
-int telemetry_loop_fq = 60;
+int telemetry_loop_fq = 1;
 TickType_t xFrequency_telemetry;
 void telemetry_task(void *pvParameters)
 {
