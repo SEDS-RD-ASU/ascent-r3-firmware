@@ -19,6 +19,7 @@
 #include "esp_log.h"
 #include "driver/gptimer.h"
 #include "driver/usb_serial_jtag.h"
+#include "driver/ledc.h"
 
 //R3 DEVICE INTERFACES
 #include "ascent_r3_hardware_definition.h"
@@ -436,9 +437,9 @@ void flash_task(void *pvParameters)
 
 
 //MARK: TELEMETRY TASK
-// Operates at 60hz on the primary core
+// Operates at 1hz on the primary core
 TaskHandle_t telemetry_task_handle;
-int telemetry_loop_fq = 60;
+int telemetry_loop_fq = 1;
 TickType_t xFrequency_telemetry;
 void telemetry_task(void *pvParameters)
 {
@@ -479,6 +480,8 @@ void telemetry_task(void *pvParameters)
         
         uart1_transmit((uint8_t *)&telemetry_buffer, latest_telemetry_buffer_size);
         uart1_transmit((uint8_t *)"\n\n\n\n", 4);
+
+        printf("sent packet at: %lld\n", esp_timer_get_time());
 
         cycle = (cycle + 1) % telemetry_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_telemetry);
@@ -673,17 +676,86 @@ void airbrakes_controller_task(void *pvParameters)
 
         float deflection = update_pid(&airbrakes_pid, error_moving_average);
         current_controller_state.def = deflection;
-        printf("time: %f | alt_agl: %f | apogee_pred: %f | error: %f | deflection: %f\n",
-            time, current_physics_state.altitude_agl, apogee_prediction, current_error, deflection);
+        // printf("time: %f | alt_agl: %f | apogee_pred: %f | error: %f | deflection: %f\n",
+        //     time, current_physics_state.altitude_agl, apogee_prediction, current_error, deflection);
 
 
         if(local_liftoff_ts) {
-            printf("time: %f | mass: %f | cd: %f | vel: %f | alt: %f | elevation: %f\n", time, current_physics_state.m, current_physics_state.cd, current_physics_state.vel, current_physics_state.altitude_agl, current_physics_state.elevation);
+            // printf("time: %f | mass: %f | cd: %f | vel: %f | alt: %f | elevation: %f\n", time, current_physics_state.m, current_physics_state.cd, current_physics_state.vel, current_physics_state.altitude_agl, current_physics_state.elevation);
         }
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency_airbrakes_controller_task);
     }
 }
+
+//MARK: SERVO TASK
+#define SERVO_PIN 45
+#define SERVO_NEUTRAL_US        1520 // Neutral position for WP110T
+#define SERVO_US_PER_DEGREE     6.67f // Based on 300deg sweep over 2000us
+#define SERVO_FREQ_HZ           333
+
+TaskHandle_t servo_task_handle;
+void servo_task(void *pvParameters)
+{
+    // Configure LEDC timer
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode       = LEDC_LOW_SPEED_MODE,
+        .timer_num        = LEDC_TIMER_1,
+        .duty_resolution  = LEDC_TIMER_13_BIT,
+        .freq_hz          = SERVO_FREQ_HZ,
+        .clk_cfg          = LEDC_AUTO_CLK
+    };
+    ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
+
+    // Configure LEDC channel
+    ledc_channel_config_t ledc_channel = {
+        .speed_mode     = LEDC_LOW_SPEED_MODE,
+        .channel        = LEDC_CHANNEL_1,
+        .timer_sel      = LEDC_TIMER_1,
+        .intr_type      = LEDC_INTR_DISABLE,
+        .gpio_num       = SERVO_PIN,
+        .duty           = 0,
+        .hpoint         = 0
+    };
+    ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+
+    const uint32_t period_us = 1000000 / SERVO_FREQ_HZ;
+    uint8_t rx_char;
+    char rx_buffer[32];
+    int rx_idx = 0;
+
+    // Start at 100 degrees
+    uint32_t initial_pulse = SERVO_NEUTRAL_US + (uint32_t)(100 * SERVO_US_PER_DEGREE);
+    uint32_t initial_duty = (initial_pulse * 8192) / period_us;
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, initial_duty));
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1));
+
+    printf("Servo listener started. Enter angle (e.g. 20) followed by newline:\n");
+
+    while(1) {
+        int len = usb_serial_jtag_read_bytes(&rx_char, 1, 0);
+        if (len > 0) {
+            if (rx_char == '\n' || rx_char == '\r') {
+                if (rx_idx > 0) {
+                    rx_buffer[rx_idx] = '\0';
+                    int angle = atoi(rx_buffer);
+                    printf("Setting servo angle: %d\n", angle);
+                    
+                    uint32_t target_pulse = SERVO_NEUTRAL_US + (uint32_t)(angle * SERVO_US_PER_DEGREE);
+                    uint32_t target_duty = (target_pulse * 8192) / period_us;
+                    
+                    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, target_duty);
+                    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
+                    rx_idx = 0;
+                }
+            } else if (rx_idx < sizeof(rx_buffer) - 1) {
+                rx_buffer[rx_idx++] = rx_char;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
 
 //MARK: ENTRY POINT
 void app_main(void)
@@ -724,21 +796,22 @@ void app_main(void)
     
     initialize_telemetry_queue();
 
-    #ifdef SIMULATOR // todo: replace w/ debug harness logic
-        // Configure USB SERIAL JTAG
-        usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
-            .rx_buffer_size = 1024,
-            .tx_buffer_size = 1024,
-        };
-        ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
-        ESP_LOGI("app_main", "USB_SERIAL_JTAG init done");
+    // Configure USB SERIAL JTAG (always enabled for interactive control)
+    usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
+        .rx_buffer_size = 1024,
+        .tx_buffer_size = 1024,
+    };
+    usb_serial_jtag_driver_install(&usb_serial_jtag_config);
+    ESP_LOGI("app_main", "USB_SERIAL_JTAG init done");
 
+    #ifdef SIMULATOR // todo: replace w/ debug harness logic
         xTaskCreatePinnedToCore(simulator_task, "simulator_task", SIMULATOR_TASK_STACK_SIZE, NULL, 10, &simulator_task_handle, 1);
     #endif
 
     // SECONDARY CORE TASKS
     xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2, &fast_sensor_task_handle, 1);
     xTaskCreatePinnedToCore(airbrakes_controller_task, "airbrakes_controller_task", 8192, NULL, 2, &airbrakes_controller_task_handle, 1);
+    xTaskCreatePinnedToCore(servo_task, "servo_task", 4096, NULL, 2, &servo_task_handle, 1);
 
 
     // PRIMARY CORE TASKS
