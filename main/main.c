@@ -322,6 +322,8 @@ void fast_sensor_task(void *pvParameters)
 
         // temp_gps = atomic_load(&gps);
 
+        barometer_velocity_t temp_baro_vel = atomic_load(&baro_vel);
+
         flash_packet primary_flash_packet = {
             .n = 0,
             .timestamp = esp_timer_get_time(),
@@ -333,8 +335,8 @@ void fast_sensor_task(void *pvParameters)
             .temperature = temp_baro.temperature,
             .altitude_agl = temp_baro.altitude_agl,
             .ground_altitude = temp_baro.ground_altitude,
-            .baro_vel = 0, // DAQ does not care about baro vel
-            .avg_baro_vel = 0, // DAQ does not care about baro vel
+            .baro_vel = temp_baro_vel.velocity,
+            .avg_baro_vel = temp_baro_vel.average_velocity,
             
             .UTCtstamp = temp_gps.UTCtstamp,
             .lat = temp_gps.lat,
