@@ -411,7 +411,7 @@ void flash_task(void *pvParameters)
     {
         flight_state = get_flight_state();
 
-        if (is_tx_lock()) {
+        if (flight_state) {
             flash_write_queue(1500);
         }
 

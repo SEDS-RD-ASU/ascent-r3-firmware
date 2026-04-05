@@ -247,8 +247,18 @@ void flash_dump_to_serial(int bank) {
 }
 
 void flash_write_packet(flash_packet *packet) {
+    if (addr >= current_bank*BANK_SIZE + (uint32_t)(BANK_SIZE * 0.95)) {
+        static bool reported = false;
+        if (!reported) {
+            printf("BANK 95%% FULL, FLASH PACKET LOST\n");
+            reported = true;
+        }
+        return;
+    }
+
     if (addr >= current_bank*BANK_SIZE + BANK_SIZE) {
         printf("BANK OVER RUN, FLASH PACKET LOST\n");
+        return;
     }
 
     w25qxx_write(addr, (uint8_t*) packet, sizeof(flash_packet));
