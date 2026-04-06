@@ -64,6 +64,7 @@ _Atomic gps_sample_t gps;
 //AIRBRAKES GLOBALS
 _Atomic int64_t liftoff_timestamp;
 _Atomic double batt_voltage;
+_Atomic float deflection;
 
 //MARK: TESTING UTILITIES.
 void measure_performance()
@@ -323,6 +324,7 @@ void fast_sensor_task(void *pvParameters)
     acc_sample_t temp_high_g_acc = {0};
     gyr_sample_t temp_gyr = {0};
     gps_sample_t temp_gps = {0};
+    float temp_deflection = 0;
 
     const TickType_t xFrequency_fast_sensor_task = pdMS_TO_TICKS(1000 / fast_sensor_task_frequency);
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -336,6 +338,7 @@ void fast_sensor_task(void *pvParameters)
         atomic_store(&high_g_acc, temp_high_g_acc);
         atomic_store(&low_g_acc, temp_low_g_acc);
         atomic_store(&gyr, temp_gyr);
+        temp_deflection = atomic_load(&deflection);
 
         // temp_gps = atomic_load(&gps);
 
@@ -347,7 +350,7 @@ void fast_sensor_task(void *pvParameters)
             .pyro_cont = 0, // TODO: REPLACE WITH ACTUAL PYRO LOGIC. FOR DAQ WE DON'T CARE RN.
             
             .pressure = temp_baro.pressure,
-            .temperature = temp_baro.temperature,
+            .temperature = temp_deflection,
             .altitude_agl = temp_baro.altitude_agl,
             .ground_altitude = temp_baro.ground_altitude,
             .baro_vel = 0, // DAQ does not care about baro vel
@@ -481,7 +484,7 @@ void telemetry_task(void *pvParameters)
         uart1_transmit((uint8_t *)&telemetry_buffer, latest_telemetry_buffer_size);
         uart1_transmit((uint8_t *)"\n\n\n\n", 4);
 
-        printf("sent packet at: %lld\n", esp_timer_get_time());
+        // printf("sent packet at: %lld\n", esp_timer_get_time());
 
         cycle = (cycle + 1) % telemetry_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_telemetry);
@@ -591,98 +594,33 @@ void airbrakes_controller_task(void *pvParameters)
     TickType_t xLastWakeTime = xTaskGetTickCount();
     uint32_t cycle = 0;
 
-    PIDController airbrakes_pid = {
-        .kp = -0.0026f,
-        .ki = -0.0015f,
-        .kd = -0.015f,
-        .T = (float)xFrequency_airbrakes_controller_task / 1000.0f, // convert ticks to seconds
-        .limit_max = 1.0f,
-        .limit_min = 0.0f
-    };
-    init_pid(&airbrakes_pid);
-
-    physics_state_t current_physics_state = {
-        .def = 0,
-        .vel = 0,
-        .altitude_agl = 0,
-        .elevation = 0,
-        .m = 0,
-        .cd = 0
-    };
-
-    controller_state_t current_controller_state = {
-        .t = 0,
-        .def = 0
-    };
-
     barometer_sample_t current_barometer_sample = {0};
-    barometer_velocity_t current_barometer_velocity = {0};
-
-    float time = 0;
-    int64_t local_liftoff_ts = 0;
-
-    current_physics_state.m = irec_rocket_mass(0);
-    current_physics_state.cd = drag_coefficient(0);
-
-    float apogee_prediction = PredictApogee(current_physics_state.m, current_physics_state.altitude_agl, current_physics_state.elevation, current_physics_state.vel, current_physics_state.def);
-    float previous_apogee_prediction = apogee_prediction;
-
-    float error_moving_average = 0.0f;
-    bool error_moving_average_initialized = false;
+    double feet = 0;
 
     while(1)
     {
         cycle = (cycle + 1) % airbrakes_controller_task_frequency;
 
-        if (!local_liftoff_ts) {
-            local_liftoff_ts = atomic_load(&liftoff_timestamp);
-        }
-
-        if (local_liftoff_ts) {
-            time = (float)(esp_timer_get_time() - local_liftoff_ts) / 1000000.0f;
-        }
-
-        current_physics_state.cd = drag_coefficient(time);
-        current_physics_state.m = irec_rocket_mass(time);
-
         current_barometer_sample = atomic_load(&baro);
-        current_barometer_velocity = atomic_load(&baro_vel);
 
-        current_physics_state.altitude_agl = current_barometer_sample.altitude_agl;
-        current_physics_state.elevation = current_barometer_sample.ground_altitude;
-        current_physics_state.vel = current_barometer_velocity.average_velocity;
+        feet = current_barometer_sample.altitude_agl * 3.28084;
 
-        // Apogee prediction
-        previous_apogee_prediction = apogee_prediction;
-        apogee_prediction = PredictApogee(current_physics_state.m, current_physics_state.altitude_agl, current_physics_state.elevation, current_physics_state.vel, current_physics_state.def);
-
-        // Determine current error
-        float current_error = apogee_prediction - 3045.06699147f; // target apogee in meters (10,000 feet)
-        if (low_g_acc.acc_z < 10 || high_g_acc.acc_z < 10) {
-            current_error = 0;
-        }
-
-        if (current_error >= 0 && current_error <= 12) {
-            current_error = 0;
-        }
-
-        // Moving average filter on error
-        if (!error_moving_average_initialized) {
-            error_moving_average = current_error;
-            error_moving_average_initialized = true;
+        float calc_deflection = 0.0f;
+        if (feet >= 9000.0f) {
+            calc_deflection = 1.0f;
+        } else if (feet >= 8000.0f) {
+            calc_deflection = 0.75f;
+        } else if (feet >= 7000.0f) {
+            calc_deflection = 0.5f;
+        } else if (feet >= 6000.0f) {
+            calc_deflection = 0.25f;
         } else {
-            error_moving_average = 0.985f * error_moving_average + 0.15f * current_error;
+            calc_deflection = 0.0f;
         }
 
-        float deflection = update_pid(&airbrakes_pid, error_moving_average);
-        current_controller_state.def = deflection;
-        // printf("time: %f | alt_agl: %f | apogee_pred: %f | error: %f | deflection: %f\n",
-        //     time, current_physics_state.altitude_agl, apogee_prediction, current_error, deflection);
+        printf("current altitude: %f, current deflection: %f\n", feet, calc_deflection);
 
-
-        if(local_liftoff_ts) {
-            // printf("time: %f | mass: %f | cd: %f | vel: %f | alt: %f | elevation: %f\n", time, current_physics_state.m, current_physics_state.cd, current_physics_state.vel, current_physics_state.altitude_agl, current_physics_state.elevation);
-        }
+        atomic_store(&deflection, calc_deflection);
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency_airbrakes_controller_task);
     }
@@ -720,39 +658,32 @@ void servo_task(void *pvParameters)
     ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
     const uint32_t period_us = 1000000 / SERVO_FREQ_HZ;
-    uint8_t rx_char;
-    char rx_buffer[32];
-    int rx_idx = 0;
-
-    // Start at 100 degrees
-    uint32_t initial_pulse = SERVO_NEUTRAL_US + (uint32_t)(100 * SERVO_US_PER_DEGREE);
-    uint32_t initial_duty = (initial_pulse * 8192) / period_us;
-    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, initial_duty));
-    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1));
-
-    printf("Servo listener started. Enter angle (e.g. 20) followed by newline:\n");
+    
+    uint8_t current_flight_state = 0;
 
     while(1) {
-        int len = usb_serial_jtag_read_bytes(&rx_char, 1, 0);
-        if (len > 0) {
-            if (rx_char == '\n' || rx_char == '\r') {
-                if (rx_idx > 0) {
-                    rx_buffer[rx_idx] = '\0';
-                    int angle = atoi(rx_buffer);
-                    printf("Setting servo angle: %d\n", angle);
-                    
-                    uint32_t target_pulse = SERVO_NEUTRAL_US + (uint32_t)(angle * SERVO_US_PER_DEGREE);
-                    uint32_t target_duty = (target_pulse * 8192) / period_us;
-                    
-                    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, target_duty);
-                    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
-                    rx_idx = 0;
-                }
-            } else if (rx_idx < sizeof(rx_buffer) - 1) {
-                rx_buffer[rx_idx++] = rx_char;
-            }
+        float current_deflection = atomic_load(&deflection);
+        current_flight_state = get_flight_state();
+        
+        // clamp deflection between 0.0 and 1.0 just in case
+        if (current_deflection < 0.0f) current_deflection = 0.0f;
+        if (current_deflection > 1.0f) current_deflection = 1.0f;
+
+        if (current_flight_state > FS_COAST_SUSTAINER) {
+            current_deflection = 0.0f;
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+
+        // map deflection: 0 -> 100, 1 -> -100
+        float angle = 100.0f - (current_deflection * 200.0f);
+        printf("angle: %f\n", angle);
+        
+        uint32_t target_pulse = SERVO_NEUTRAL_US + (uint32_t)(angle * SERVO_US_PER_DEGREE);
+        uint32_t target_duty = (target_pulse * 8192) / period_us;
+        
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, target_duty);
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
+
+        vTaskDelay(pdMS_TO_TICKS(15));
     }
 }
 
