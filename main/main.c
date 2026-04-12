@@ -420,7 +420,7 @@ void slow_sensor_task(void *pvParameters)
 
 
 //MARK: FLASH TASK
-// Operates at 60hz on core 1
+// Operates at 500hz on core 1
 TaskHandle_t flash_task_handle;
 int flash_task_frequency = 500;
 TickType_t xFrequency_flash_task;
