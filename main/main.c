@@ -280,10 +280,12 @@ void primary_task(void *pvParameters)
         atomic_store(&baro_vel, primary_baro_vel);
 
         #ifdef DEBUG // DO NOT MERGE THIS SECTION TO FLIGHT BRANCH.
-        printf( 
+        printf(
+            "fs=%u | " 
             "baro[t=%" PRIi64 "] P=%.2f T=%.2f AGL=%.2f GND=%.2f | vel=%.2f avg=%.2f | "
             "highG[%.3f %.3f %.3f] lowG[%.3f %.3f %.3f] gyr[%.3f %.3f %.3f] | "
             "gps[t=%" PRIi64 " UTC=%" PRIu32 " lat=%" PRIu32 " lon=%" PRIu32 " altE=%" PRIu32 " altMSL=%" PRIu32 " fix=%u sats=%u]\n",
+            flight_state,
             primary_baro.timestamp,
             primary_baro.pressure,
             primary_baro.temperature,
@@ -310,7 +312,7 @@ void primary_task(void *pvParameters)
             primary_gps.num_sats);
         #endif
 
-        flight_update(primary_baro.altitude_agl, primary_baro_vel.velocity, primary_baro_vel.average_velocity, primary_low_g_acc.acc_y);
+        flight_update(primary_baro.altitude_agl, primary_baro_vel.velocity, primary_baro_vel.average_velocity, primary_low_g_acc.acc_z);
         
         cycle = (cycle + 1) % primary_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_primary);
@@ -344,7 +346,7 @@ void fast_sensor_task(void *pvParameters)
         atomic_store(&low_g_acc, temp_low_g_acc);
         atomic_store(&gyr, temp_gyr);
 
-        // temp_gps = atomic_load(&gps);
+        temp_gps = atomic_load(&gps);
 
         flash_packet primary_flash_packet = {
             .n = 0,
@@ -434,7 +436,7 @@ void flash_task(void *pvParameters)
     {
         flight_state = get_flight_state();
 
-        if (is_tx_lock()) {
+        if (flight_state != FS_ON_PAD) {
             flash_write_queue(1500);
         }
 
