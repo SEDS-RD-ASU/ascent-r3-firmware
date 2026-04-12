@@ -97,7 +97,7 @@ bool flash_prepare_for_flight(void) {
     addr = 0;
 
     // Write 0 to NVS now (safe to stall during pre-flight setup)
-    nvs_set_i32(my_handle, NVS_USED_BYTES_KEY, 0);
+    nvs_set_i32(my_handle, NVS_USED_BYTES_KEY, 1);
 
     printf("Ready to fly\n");
     flash_erase_jingle();

@@ -430,6 +430,8 @@ void flash_task(void *pvParameters)
     TickType_t xLastWakeTime = xTaskGetTickCount();
     uint32_t cycle = 0;
 
+    uint8_t led_turned_on = 0; // turn LED on if FS > 0 for visual confirmation of launch detection w/ txlock enabled
+
     uint8_t flight_state;
 
     while(1)
@@ -438,6 +440,11 @@ void flash_task(void *pvParameters)
 
         if (flight_state != FS_ON_PAD) {
             flash_write_queue(1500);
+
+            if(!led_turned_on){
+                led_purple();
+                led_turned_on = 1;
+            }
         }
 
         cycle = (cycle + 1) % flash_task_frequency;

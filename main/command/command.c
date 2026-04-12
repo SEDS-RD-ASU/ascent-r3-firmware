@@ -44,10 +44,10 @@ esp_err_t enable_txlock(void)
 
     led_purple();
 
-    int32_t flash_bank_counter = 0;
-    nvs_get_i32(nvs_interface_get_handle(), "bank_counter", &flash_bank_counter);
+    int32_t used_bytes = 0;
+    nvs_get_i32(nvs_interface_get_handle(), "used_bytes", &used_bytes);
 
-    if (flash_bank_counter > 0) {
+    if (used_bytes > 0) {
         while (1) {
             led_red();
             error_beep();
@@ -56,8 +56,6 @@ esp_err_t enable_txlock(void)
             vTaskDelay(pdMS_TO_TICKS(500));
         }
     }
-
-    nvs_set_i32(nvs_interface_get_handle(), "bank_counter", flash_bank_counter + 1);
 
     ret = flash_prepare_for_flight();
 
