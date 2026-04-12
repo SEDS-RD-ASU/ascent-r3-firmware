@@ -38,7 +38,7 @@ static uint32_t addr = 0;
 
 static nvs_handle_t my_handle;
 
-#define RING_BUFFER_SIZE 50
+#define RING_BUFFER_SIZE 500
 QueueHandle_t flash_packet_queue;
 
 void flash_erase_jingle(void);
