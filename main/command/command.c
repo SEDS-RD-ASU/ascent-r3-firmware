@@ -7,6 +7,9 @@
 #include "driver_pyro.h"
 #include "beep.h"
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 #define APPO PYRO_CHANNEL_1
 #define MAINS PYRO_CHANNEL_2
 
@@ -40,6 +43,21 @@ esp_err_t enable_txlock(void)
     int ret;
 
     led_purple();
+
+    int32_t flash_bank_counter = 0;
+    nvs_get_i32(nvs_interface_get_handle(), "bank_counter", &flash_bank_counter);
+
+    if (flash_bank_counter > 0) {
+        while (1) {
+            led_red();
+            error_beep();
+            vTaskDelay(pdMS_TO_TICKS(500));
+            led_off();
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+    }
+
+    nvs_set_i32(nvs_interface_get_handle(), "bank_counter", flash_bank_counter + 1);
 
     ret = flash_prepare_for_flight();
 

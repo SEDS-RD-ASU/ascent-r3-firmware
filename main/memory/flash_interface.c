@@ -62,6 +62,12 @@ esp_err_t flash_flight_init(void)
         nvs_set_i32(my_handle, NVS_USED_BYTES_KEY, 0);
     }
 
+    int32_t bank_counter;
+    if (nvs_get_i32(my_handle, "bank_counter", &bank_counter) != ESP_OK) {
+        printf("'bank_counter' not found in NVS, initializing to 0\n");
+        nvs_set_i32(my_handle, "bank_counter", 0);
+    }
+
     flash_packet_queue = xQueueCreate(RING_BUFFER_SIZE, sizeof(flash_packet));
     assert(flash_packet_queue != NULL);
 
@@ -226,6 +232,7 @@ void flash_blank_slate() {
     printf("CHIP ERASE — please wait, this can take several minutes. DO NOT POWER OFF.\n");
     w25qxx_chip_erase();
     nvs_set_i32(my_handle, NVS_USED_BYTES_KEY, 0);
+    nvs_set_i32(my_handle, "bank_counter", 0);
     printf("Done\n");
     flash_erase_jingle();
 }
@@ -250,26 +257,11 @@ void try_to_dump_data() {
             vTaskDelay(1000 / portTICK_PERIOD_MS);
             esp_restart();
         } else if (strcmp("NUCLEAR", buf) == 0) {
-            int time_spent = 0;
-            printf("WARNING: This will erase all NVS data including flight configs! Type \"YES\" to confirm (Timeout: 10s):\n");
-            while (time_spent < 10) {
-                if (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
-                    if (strcmp("YES", buf) == 0) {
-                        printf("Erasing NVS...\n");
-                        nvs_flash_erase();
-                        printf("Done. System will now restart...\n");
-                        vTaskDelay(1000 / portTICK_PERIOD_MS);
-                        esp_restart();
-                    } else {
-                        printf("Aborting NUCLEAR operation.\n");
-                    }
-                    break;
-                }
-                time_spent++;
-            }
-            if (time_spent >= 10) {
-                printf("NUCLEAR operation timed out.\n");
-            }
+            printf("Erasing NVS...\n");
+            nvs_flash_erase();
+            printf("Done. System will now restart...\n");
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            esp_restart();
         }
     }
     usb_serial_jtag_driver_uninstall();
