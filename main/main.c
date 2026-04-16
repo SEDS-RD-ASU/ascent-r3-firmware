@@ -657,6 +657,11 @@ void app_main(void)
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
 
     led_teal();
+
+    printf("BATTERY VOLTAGE: %f\n", psu_read_battery_voltage());
+    printf("BATTERY VOLTAGE: %f\n", psu_read_battery_voltage());
+    printf("BATTERY VOLTAGE: %f\n", psu_read_battery_voltage());
+    
     high_beep();high_beep();high_beep(); // success!
 
 }

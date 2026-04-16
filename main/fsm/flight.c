@@ -19,33 +19,33 @@ _Atomic flight_config_t flight_config;
 
 void flight_config_init(void) {
     flight_config_t cfg;
-    if (nvs_retreive_flight_config(&cfg) != ESP_OK) {
-        cfg = (flight_config_t){
-            .lift_off_acceleration_threshold = 9.81*3,
-            .lift_off_tick_count = 5,
-            .apogee_acceleration_threshold = 9.81/2,
-            .apogee_tick_count = 5,
-            .burnout_acceleration_threshold = 0,
-            .burnout_tick_count = 5,
-            .recovery_burnout_counter = 1, // This condition will allow us to select the number of stages in multistage rockets
-            .arm_at_boot = false,
-            .Appo_Channel = PYRO_CHANNEL_1,
-            .Mains_Channel = PYRO_CHANNEL_2,
-            .Separation_Channel = 0,
-            .Ignition_Channel = 0,
-            .Aux_1_Channel = 0,
-            .Aux_2_Channel = 0,
-            .Aux_3_Channel = 0,
-            .Aux_4_Channel = 0,
-            .panic_velocity_threshold = -240.0f/3.28,
-            .main_deployment_altitude = 1000/3.28,
-            .main_deployment_tick_count = 5,
-            .highest_ground_elevation = 100,
-            .landed_velocity_threshold = 2,
-            .landed_tick_count = 255,
-        };
-        nvs_set_flight_config(&cfg);
-    }
+
+    cfg = (flight_config_t){
+        .lift_off_acceleration_threshold = 9.81*4,
+        .lift_off_tick_count = 5,
+        .apogee_acceleration_threshold = 9.81/2,
+        .apogee_tick_count = 5,
+        .burnout_acceleration_threshold = 0,
+        .burnout_tick_count = 5,
+        .recovery_burnout_counter = 1, // This condition will allow us to select the number of stages in multistage rockets
+        .arm_at_boot = false,
+        .Appo_Channel = PYRO_CHANNEL_1,
+        .Mains_Channel = PYRO_CHANNEL_2,
+        .Separation_Channel = 0,
+        .Ignition_Channel = 0,
+        .Aux_1_Channel = 0,
+        .Aux_2_Channel = 0,
+        .Aux_3_Channel = 0,
+        .Aux_4_Channel = 0,
+        .panic_velocity_threshold = -240.0f/3.28,
+        .main_deployment_altitude = 1000/3.28,
+        .main_deployment_tick_count = 5,
+        .highest_ground_elevation = 100,
+        .landed_velocity_threshold = 2,
+        .landed_tick_count = 255,
+    };
+    nvs_set_flight_config(&cfg);
+
     atomic_store(&flight_config, cfg);
 }
 
