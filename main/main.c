@@ -186,7 +186,7 @@ esp_err_t flight_initialize_devices(void)
 
     ret = buzzer_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE BUZZER"); return ret;}
-    ascent_beep(); // beep boop
+    megolavania(); // beep boop
     
     ret = led_init(PIN_LED);
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE LED"); return ret;}
@@ -407,11 +407,18 @@ void slow_sensor_task(void *pvParameters)
 
     gps_sample_t temp_gps;
 
+    bool got_first_gps_fix = false;
+
     while(1)
     {
         poll_gps(&temp_gps);
         atomic_store(&gps, temp_gps);
         atomic_store(&batt_voltage, psu_read_battery_voltage());
+
+        if (temp_gps.fixType > 0 && !got_first_gps_fix) {
+            led_pink();
+            got_first_gps_fix = true;
+        }
 
         cycle = (cycle + 1) % slow_sensor_frequency;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_slow_sensor);
@@ -661,7 +668,9 @@ void app_main(void)
     printf("BATTERY VOLTAGE: %f\n", psu_read_battery_voltage());
     printf("BATTERY VOLTAGE: %f\n", psu_read_battery_voltage());
     printf("BATTERY VOLTAGE: %f\n", psu_read_battery_voltage());
-    
+
+    battery_beep();
+
     high_beep();high_beep();high_beep(); // success!
 
 }

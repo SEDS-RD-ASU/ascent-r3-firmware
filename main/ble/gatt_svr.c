@@ -183,7 +183,7 @@ static int gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
         if (attr_handle == gatt_svr_chr_val_handle) {
             
             // Append the serialized data to the output mbuf
-            uint8_t voltage = 25*(uint8_t)(psu_read_battery_voltage());
+            uint8_t voltage = (uint8_t)(50.0f * psu_read_battery_voltage());
             rc = os_mbuf_append(ctxt->om, &voltage, 1);
             if (rc != 0) {
                 MODLOG_DFLT(ERROR, "Failed to append data to mbuf; rc=%d\n", rc);

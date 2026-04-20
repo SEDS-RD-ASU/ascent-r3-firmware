@@ -238,12 +238,13 @@ void flash_blank_slate() {
 }
 
 void try_to_dump_data() {
-    printf("You have 5 seconds to enter \"DUMP\", \"ERASE\", or \"NUCLEAR\"...\n");
+    printf("****** ATTENTION EXTERNAL USER (UNIVERSITY OF SOUTHERN CALIFORNIA) ******\n\n-> THIS FLIGHT COMPUTER IS PROPERTY OF THE ARIZONA STATE UNIVERSITY AND THE ARIZONA BOARD OF REGENTS.\n-> THIS DEVICE IS NOT TO BE SOLD OR DISTRIBUTED.\n-> UNAUTHORIZED ACCESS OR USE OF THIS DEVICE WILL BE PURSUED TO THE FULLEST EXTENT OF THE LAW.\n-> THE FLIGHT DATA PRESENT ON THIS DEVICE SHALL NOT BE TAMPERED WITH, RECORDED, OR DISTRIBUTED WITHOUT PERMISSION.\n\n**************************************************************************\n\n");
+    printf("You have 5 seconds to enter commands in:\n\n");
     vTaskDelay(5000 / portTICK_PERIOD_MS);
     char buf[512];
     int i = 0;
     while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
-        if (strcmp("DUMP", buf) == 0) {
+        if (strcmp("DUMPG", buf) == 0) {
             while (true) {
                 flash_dump_to_serial();
                 for (int j = 0; j < 3; j++) {
@@ -251,12 +252,12 @@ void try_to_dump_data() {
                     vTaskDelay(pdMS_TO_TICKS(500));
                 }
             }
-        } else if (strcmp("ERASE", buf) == 0) {
+        } else if (strcmp("ERASEG", buf) == 0) {
             flash_blank_slate();
             printf("System will now restart...\n");
             vTaskDelay(1000 / portTICK_PERIOD_MS);
             esp_restart();
-        } else if (strcmp("NUCLEAR", buf) == 0) {
+        } else if (strcmp("NUCLEARG", buf) == 0) {
             printf("Erasing NVS...\n");
             nvs_flash_erase();
             printf("Done. System will now restart...\n");
