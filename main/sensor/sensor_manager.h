@@ -51,6 +51,13 @@ typedef struct {
 
 typedef struct {
     int64_t timestamp;
+    float grav_x;
+    float grav_y;
+    float grav_z;
+} grav_sample_t;
+
+typedef struct {
+    int64_t timestamp;
     float gyr_x;
     float gyr_y;
     float gyr_z;
@@ -63,7 +70,7 @@ typedef struct {
 
 esp_err_t initialize_sensors(bool simulator);
 
-void poll_sensors(barometer_sample_t *pBaro, acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr, gps_sample_t *gps);
+void poll_sensors(barometer_sample_t *pBaro, acc_sample_t *high_g, acc_sample_t *low_g, grav_sample_t *grav,gyr_sample_t *gyr, gps_sample_t *gps);
 
 void barometer_int_callback(void *args);
 
@@ -71,6 +78,6 @@ void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel);
 
 esp_err_t poll_gps(gps_sample_t *gps);
 
-void feed_fake_flight_data(barometer_sample_t baro, barometer_velocity_t baro_vel, acc_sample_t high_g, acc_sample_t low_g, gyr_sample_t gyr, gps_sample_t gps);
+void feed_fake_flight_data(barometer_sample_t baro, barometer_velocity_t baro_vel, acc_sample_t high_g, acc_sample_t low_g, grav_sample_t grav, gyr_sample_t gyr, gps_sample_t gps);
 
 #endif

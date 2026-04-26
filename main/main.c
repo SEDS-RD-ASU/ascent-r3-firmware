@@ -51,6 +51,7 @@ _Atomic barometer_sample_t baro;
 _Atomic barometer_velocity_t baro_vel;
 _Atomic acc_sample_t low_g_acc;
 _Atomic acc_sample_t high_g_acc;
+_Atomic grav_sample_t grav;
 _Atomic gyr_sample_t gyr;
 _Atomic gps_sample_t gps;
 _Atomic double batt_voltage;
@@ -209,6 +210,7 @@ void primary_task(void *pvParameters)
     barometer_velocity_t primary_baro_vel;
     acc_sample_t primary_low_g_acc;
     acc_sample_t primary_high_g_acc;
+    grav_sample_t primary_grav;
     gyr_sample_t primary_gyr;
     gps_sample_t primary_gps;
 
@@ -224,6 +226,7 @@ void primary_task(void *pvParameters)
         primary_baro_vel = atomic_load(&baro_vel);
         primary_low_g_acc = atomic_load(&low_g_acc);
         primary_high_g_acc = atomic_load(&high_g_acc);
+        primary_grav = atomic_load(&grav);
         primary_gyr = atomic_load(&gyr);
         primary_gps = atomic_load(&gps);
 
@@ -235,7 +238,7 @@ void primary_task(void *pvParameters)
         #ifdef DEBUG // DO NOT MERGE THIS SECTION TO FLIGHT BRANCH.
         printf( 
             "baro[t=%" PRIi64 "] P=%.2f T=%.2f AGL=%.2f GND=%.2f | vel=%.2f avg=%.2f | "
-            "highG[%.3f %.3f %.3f] lowG[%.3f %.3f %.3f] gyr[%.3f %.3f %.3f] | "
+            "highG[%.3f %.3f %.3f] lowG[%.3f %.3f %.3f] gyr[%.3f %.3f %.3f] | grav[%.3f %.3f %.3f] | "
             "gps[t=%" PRIi64 " UTC=%" PRIu32 " lat=%" PRIu32 " lon=%" PRIu32 " altE=%" PRIu32 " altMSL=%" PRIu32 " fix=%u sats=%u]\n",
             primary_baro.timestamp,
             primary_baro.pressure,
@@ -253,6 +256,9 @@ void primary_task(void *pvParameters)
             primary_gyr.gyr_x,
             primary_gyr.gyr_y,
             primary_gyr.gyr_z,
+            primary_grav.grav_x,
+            primary_grav.grav_y,
+            primary_grav.grav_z,
             primary_gps.timestamp,
             primary_gps.UTCtstamp,
             primary_gps.lat,
@@ -304,6 +310,7 @@ void fast_sensor_task(void *pvParameters)
     barometer_sample_t temp_baro = {0};
     acc_sample_t temp_low_g_acc = {0};
     acc_sample_t temp_high_g_acc = {0};
+    grav_sample_t temp_grav = {0};
     gyr_sample_t temp_gyr = {0};
     gps_sample_t temp_gps = {0};
 
@@ -313,12 +320,13 @@ void fast_sensor_task(void *pvParameters)
 
     while(1)
     {
-        poll_sensors(&temp_baro, &temp_high_g_acc, &temp_low_g_acc, &temp_gyr, &temp_gps);
+        poll_sensors(&temp_baro, &temp_high_g_acc, &temp_low_g_acc, &temp_grav, &temp_gyr, &temp_gps);
 
         atomic_store(&baro, temp_baro);
         atomic_store(&high_g_acc, temp_high_g_acc);
         atomic_store(&low_g_acc, temp_low_g_acc);
         atomic_store(&gyr, temp_gyr);
+        atomic_store(&grav, temp_grav);
 
         // temp_gps = atomic_load(&gps);
 
@@ -489,6 +497,7 @@ void simulator_task(void *pvParameters)
     barometer_velocity_t temp_baro_vel = {0};
     acc_sample_t temp_low_g_acc = {0};
     acc_sample_t temp_high_g_acc = {0};
+    grav_sample_t temp_grav = {0};
     gyr_sample_t temp_gyr = {0};
     gps_sample_t temp_gps = {
         .lat = 99,
@@ -531,6 +540,10 @@ void simulator_task(void *pvParameters)
                 temp_high_g_acc.acc_y = packet->hacc_y;
                 temp_high_g_acc.acc_z = packet->hacc_z;
 
+                temp_grav.grav_x = packet->grav_x;
+                temp_grav.grav_y = packet->grav_y;
+                temp_grav.grav_z = packet->grav_z;
+
                 temp_gyr.gyr_x = packet->gyr_x;
                 temp_gyr.gyr_y = packet->gyr_y;
                 temp_gyr.gyr_z = packet->gyr_z;
@@ -543,7 +556,7 @@ void simulator_task(void *pvParameters)
                 temp_gps.fixType = packet->fixType;
                 temp_gps.num_sats = packet->num_sats;
 
-                feed_fake_flight_data(temp_baro, temp_baro_vel, temp_high_g_acc, temp_low_g_acc, temp_gyr, temp_gps);
+                feed_fake_flight_data(temp_baro, temp_baro_vel, temp_high_g_acc, temp_low_g_acc, temp_grav, temp_gyr, temp_gps);
             } else {
                 char warn_buf[64];
                 int warn_len = snprintf(warn_buf, sizeof(warn_buf),

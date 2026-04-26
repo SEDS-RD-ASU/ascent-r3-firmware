@@ -44,6 +44,11 @@ typedef struct {
     float gyr_y;
     float gyr_z;
 
+    // grav_sample_t
+    float grav_x;
+    float grav_y;
+    float grav_z;
+
 } flash_packet;
 
 uint32_t flash_get_addr();

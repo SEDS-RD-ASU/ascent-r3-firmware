@@ -20,6 +20,7 @@ _Atomic barometer_sample_t sim_baro;
 _Atomic barometer_velocity_t sim_baro_vel;
 _Atomic acc_sample_t sim_low_g_acc;
 _Atomic acc_sample_t sim_high_g_acc;
+_Atomic grav_sample_t sim_grav;
 _Atomic gyr_sample_t sim_gyr;
 _Atomic gps_sample_t sim_gps;
 
@@ -116,12 +117,13 @@ esp_err_t poll_gps(gps_sample_t *gps)
     return ESP_OK;
 }
 
-static esp_err_t poll_imu(acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr)
+static esp_err_t poll_imu(acc_sample_t *high_g, acc_sample_t *low_g, grav_sample_t *grav, gyr_sample_t *gyr)
 {
     if(simulator) {
         acc_sample_t temp_low_acc_data = atomic_load(&sim_low_g_acc);
         acc_sample_t temp_high_acc_data = atomic_load(&sim_high_g_acc);
         gyr_sample_t temp_gyr_sample = atomic_load(&sim_gyr);
+        grav_sample_t temp_grav_sample = atomic_load(&sim_grav);
         int64_t timestamp = esp_timer_get_time();
         
         low_g->timestamp = timestamp;
@@ -138,6 +140,11 @@ static esp_err_t poll_imu(acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_
         gyr->gyr_x = temp_gyr_sample.gyr_x;
         gyr->gyr_y = temp_gyr_sample.gyr_y;
         gyr->gyr_z = temp_gyr_sample.gyr_z;
+
+        grav->timestamp = timestamp;
+        grav->grav_x = temp_grav_sample.grav_x;
+        grav->grav_y = temp_grav_sample.grav_y;
+        grav->grav_z = temp_grav_sample.grav_z;
     }
     else {
         lsm_raw_data_t raw_imu_data;
@@ -159,6 +166,11 @@ static esp_err_t poll_imu(acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_
         gyr->gyr_x = raw_imu_data.gyr_x;
         gyr->gyr_y = raw_imu_data.gyr_y;
         gyr->gyr_z = raw_imu_data.gyr_z;
+
+        grav->timestamp = timestamp;
+        grav->grav_x = raw_imu_data.gravity_x;
+        grav->grav_y = raw_imu_data.gravity_y;
+        grav->grav_z = raw_imu_data.gravity_z;
     }
     
 
@@ -215,7 +227,7 @@ void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel)
     baro_vel->average_velocity = average_barometric_velocity;
 }
 
-void poll_sensors(barometer_sample_t *pBaro, acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr, gps_sample_t *gps)
+void poll_sensors(barometer_sample_t *pBaro, acc_sample_t *high_g, acc_sample_t *low_g, grav_sample_t *grav, gyr_sample_t *gyr, gps_sample_t *gps)
 {
     if (barometer_data_ready) {
         poll_baro(pBaro);
@@ -226,20 +238,21 @@ void poll_sensors(barometer_sample_t *pBaro, acc_sample_t *high_g, acc_sample_t 
         }
     }
     if (imu_data_ready){
-        poll_imu(high_g, low_g, gyr);
+        poll_imu(high_g, low_g, grav, gyr);
     }
     if (gps_data_ready){
         // poll_gps(gps);
     }
 }
 
-void feed_fake_flight_data(barometer_sample_t baro, barometer_velocity_t baro_vel, acc_sample_t high_g, acc_sample_t low_g, gyr_sample_t gyr, gps_sample_t gps)
+void feed_fake_flight_data(barometer_sample_t baro, barometer_velocity_t baro_vel, acc_sample_t high_g, acc_sample_t low_g, grav_sample_t grav, gyr_sample_t gyr, gps_sample_t gps)
 {
     // Atomic store all these variables
     atomic_store(&sim_baro, baro);
     atomic_store(&sim_baro_vel, baro_vel);
     atomic_store(&sim_high_g_acc, high_g);
     atomic_store(&sim_low_g_acc, low_g);
+    atomic_store(&sim_grav, grav);  
     atomic_store(&sim_gyr, gyr);
     atomic_store(&sim_gps, gps);
 }
