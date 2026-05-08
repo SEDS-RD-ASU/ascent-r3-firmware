@@ -438,6 +438,7 @@ void telemetry_task(void *pvParameters)
     uint8_t telemetry_buffer[256]; // GOOBER packets cannot be more than 256 bytes
     uint8_t latest_telemetry_buffer_size = 0;
     
+    printf("Starting telemetry task\n");
 
     goober_header_t latest_header = {
         .dev_id = board_serial_number(),
@@ -448,6 +449,47 @@ void telemetry_task(void *pvParameters)
     };
 
     while(1) {
+        uint8_t rx_buf[128];
+        int rx_len = 0;
+        
+        if(!is_tx_lock())
+        {
+            rx_len = uart1_receive(rx_buf, sizeof(rx_buf), 10);
+            if (rx_len > 0) {
+                // remove last two bytes from rx_buf (newline stuff)
+                rx_len -= 2;
+
+                printf("UART1 RX %d BYTES: \n", rx_len);
+                for (int i = 0; i < rx_len; i++) {
+                    printf("%02x ", rx_buf[i]);
+                }
+                printf("\n");
+
+                goober_header_t temp_header;
+                uint8_t temp_data[256];
+                size_t data_size = 0;
+                int ret;
+                
+                ret = goober_deserialize(rx_buf, rx_len, &temp_header, temp_data, sizeof(temp_data), &data_size);
+                
+                if(ret){
+                    ESP_LOGE("TELEMETRY", "Failed to deserialize packet! (error code: %d)", ret);
+                } else {
+                    printf("UART1 DESERIALIZED %d BYTES\n", data_size);
+                    printf("   - DEVICE ID: %d\n", temp_header.dev_id);
+                    printf("   - MESSAGE CLASS: %d\n", temp_header.msg_cls);
+                    printf("   - SEQUENCE ID: %d\n", temp_header.seq_id);
+                    printf("   - PAYLOAD LENGTH: %d\n", temp_header.payload_length);
+                    printf("   - DEVICE MODE: %d\n", temp_header.dev_mode);
+                    printf("   - PAYLOAD DATA: ");
+                    for (int i = 0; i < data_size; i++) {
+                        printf("%02x ", temp_data[i]);
+                    }
+                    printf("\n");
+                }
+            }
+        }
+
         peekLatestTelemetry(&latest_telemetry);
 
         latest_header.seq_id = next_sequence_id();
@@ -463,8 +505,8 @@ void telemetry_task(void *pvParameters)
 
         goober_serialize(latest_header, (uint8_t *)&latest_telemetry, sizeof(latest_telemetry), telemetry_buffer, sizeof(telemetry_buffer), &latest_telemetry_buffer_size);
         
-        uart1_transmit((uint8_t *)&telemetry_buffer, latest_telemetry_buffer_size);
-        uart1_transmit((uint8_t *)"\n\n\n\n", 4);
+        // uart1_transmit((uint8_t *)&telemetry_buffer, latest_telemetry_buffer_size);
+        // uart1_transmit((uint8_t *)"\n\n\n\n", 4);
 
         cycle = (cycle + 1) % telemetry_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_telemetry);

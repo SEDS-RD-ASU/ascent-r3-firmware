@@ -47,6 +47,7 @@ typedef struct {
 } ascent_telemetry_t;
 
 esp_err_t enable_txlock(void);
+esp_err_t disable_txlock(void);
 
 esp_err_t process_command(uint8_t msg_class);
 

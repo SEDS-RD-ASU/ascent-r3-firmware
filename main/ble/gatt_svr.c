@@ -29,6 +29,7 @@
 #include "goober.h"
 #include "command.h"
 #include "driver_psu.h"
+#include "nvs_interface.h"
 
 static const ble_uuid16_t gatt_svr_svc_uuid =
     BLE_UUID16_INIT(0x0000);
@@ -177,21 +178,39 @@ static int gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
 
     switch (ctxt->op) {
     case BLE_GATT_ACCESS_OP_READ_CHR:
-        // Removed logging here to prevent UART blocking during BLE operations
-        // MODLOG_DFLT(INFO, "Characteristic read; conn_handle=%d attr_handle=%d\n",
-        //             conn_handle, attr_handle);
         if (attr_handle == gatt_svr_chr_val_handle) {
-            
-            // Append the serialized data to the output mbuf
-            uint8_t voltage = 25*(uint8_t)(psu_read_battery_voltage());
-            rc = os_mbuf_append(ctxt->om, &voltage, 1);
-            if (rc != 0) {
-                MODLOG_DFLT(ERROR, "Failed to append data to mbuf; rc=%d\n", rc);
+            // Peek the latest telemetry from the shared queue
+            ascent_telemetry_t ble_telemetry;
+            peekLatestTelemetry(&ble_telemetry);
+
+            // Build a GOOBER packet header, mirroring the telemetry_task
+            goober_header_t ble_header = {
+                .dev_id         = board_serial_number(),
+                .dev_mode       = goober_device_mode(GOOBER_MODE_SIMPLEX, true, true, false, false),
+                .seq_id         = next_sequence_id(),
+                .msg_cls        = TELEMETRY,
+                .payload_length = sizeof(ascent_telemetry_t),
+            };
+
+            uint8_t ble_packet_buf[256];
+            uint8_t ble_packet_size = 0;
+            int goober_rc = goober_serialize(
+                ble_header,
+                (uint8_t *)&ble_telemetry, sizeof(ble_telemetry),
+                ble_packet_buf, sizeof(ble_packet_buf),
+                &ble_packet_size
+            );
+            if (goober_rc != 0) {
+                MODLOG_DFLT(ERROR, "goober_serialize failed; rc=%d\n", goober_rc);
                 return BLE_ATT_ERR_UNLIKELY;
             }
-            
-            // Removed logging here to prevent UART blocking during BLE operations
-            // MODLOG_DFLT(INFO, "Sending goober packet response (size=%d)\n", serialized_buffer_length);
+
+            rc = os_mbuf_append(ctxt->om, ble_packet_buf, ble_packet_size);
+            if (rc != 0) {
+                MODLOG_DFLT(ERROR, "Failed to append goober packet to mbuf; rc=%d\n", rc);
+                return BLE_ATT_ERR_UNLIKELY;
+            }
+
             return 0;
         }
         break;

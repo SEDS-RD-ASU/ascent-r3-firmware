@@ -54,6 +54,12 @@ esp_err_t enable_txlock(void)
     return ESP_OK;
 }
 
+esp_err_t disable_txlock(void)
+{
+    atomic_store(&TXLOCK, false);
+    return ESP_OK;
+}
+
 esp_err_t process_command(uint8_t msg_class)
 {
     switch(msg_class) {
