@@ -237,13 +237,20 @@ static int gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
                 return BLE_ATT_ERR_UNLIKELY;
             }
             
-            printf("Received BLE packet: ");
-            for(int i = 0; i < len; i++) {
-                printf("0x%02X ", rx_buffer[i]);
+            goober_header_t temp_header;
+            uint8_t temp_data[256];
+            size_t data_size = 0;
+            int ret;
+                
+            ret = goober_deserialize(rx_buffer, len, &temp_header, temp_data, sizeof(temp_data), &data_size);
+            if (ret != 0) {
+                MODLOG_DFLT(ERROR, "goober_deserialize failed; rc=%d\n", ret);
+                //clear rx buffer
+                memset(rx_buffer, 0, sizeof(rx_buffer));
+                return BLE_ATT_ERR_UNLIKELY;
             }
-            printf("\n");
-
-            process_command(rx_buffer[0]);
+            
+            process_command(temp_header.msg_cls);
             
             return 0;
         }

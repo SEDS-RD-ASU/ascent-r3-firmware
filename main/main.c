@@ -135,6 +135,12 @@ esp_err_t flight_initialize_devices(void)
         is_simulator = true;
     #endif
 
+    gpio_set_direction(RF_RST, GPIO_MODE_OUTPUT);
+    gpio_set_level(RF_RST, 0);
+    vTaskDelay(pdMS_TO_TICKS(30));
+    gpio_set_level(RF_RST, 1);
+
+
     ret = buzzer_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE BUZZER"); return ret;}
     ascent_beep(); // beep boop
@@ -212,6 +218,8 @@ void primary_task(void *pvParameters)
     gyr_sample_t primary_gyr;
     gps_sample_t primary_gps;
 
+    bool purple_led_set = false;
+
     while (1)
     {
         uint8_t flight_state = get_flight_state();
@@ -282,6 +290,10 @@ void primary_task(void *pvParameters)
         if (flight_state > FS_ON_PAD && flight_state != FS_LANDED) // if we are in the air, basically
         {
             // printf("I am flying!!!\n");
+            if(!purple_led_set) {
+                purple_led_set = true;
+                led_purple();
+            }
         } else {
             // Do something while not flying
         }
@@ -448,7 +460,24 @@ void telemetry_task(void *pvParameters)
         .payload_length = 0, // will be overwritten
     };
 
+
     while(1) {
+
+        peekLatestTelemetry(&latest_telemetry);
+
+        latest_header.seq_id = next_sequence_id();
+        latest_header.msg_cls = TELEMETRY;
+        latest_header.payload_length = sizeof(ascent_telemetry_t);
+
+        if(is_tx_lock())
+        {
+            latest_header.dev_mode = goober_device_mode(GOOBER_MODE_SIMPLEX, true, true, false, false);
+        } else {
+            latest_header.dev_mode = goober_device_mode(GOOBER_MODE_HALF_DUPLEX, false, true, false, false);
+        }
+
+        goober_serialize(latest_header, (uint8_t *)&latest_telemetry, sizeof(latest_telemetry), telemetry_buffer, sizeof(telemetry_buffer), &latest_telemetry_buffer_size);
+
         uint8_t rx_buf[128];
         int rx_len = 0;
         
@@ -456,8 +485,6 @@ void telemetry_task(void *pvParameters)
         {
             rx_len = uart1_receive(rx_buf, sizeof(rx_buf), 10);
             if (rx_len > 0) {
-                // remove last two bytes from rx_buf (newline stuff)
-                rx_len -= 2;
 
                 printf("UART1 RX %d BYTES: \n", rx_len);
                 for (int i = 0; i < rx_len; i++) {
@@ -475,39 +502,32 @@ void telemetry_task(void *pvParameters)
                 if(ret){
                     ESP_LOGE("TELEMETRY", "Failed to deserialize packet! (error code: %d)", ret);
                 } else {
-                    printf("UART1 DESERIALIZED %d BYTES\n", data_size);
-                    printf("   - DEVICE ID: %d\n", temp_header.dev_id);
-                    printf("   - MESSAGE CLASS: %d\n", temp_header.msg_cls);
-                    printf("   - SEQUENCE ID: %d\n", temp_header.seq_id);
-                    printf("   - PAYLOAD LENGTH: %d\n", temp_header.payload_length);
-                    printf("   - DEVICE MODE: %d\n", temp_header.dev_mode);
-                    printf("   - PAYLOAD DATA: ");
-                    for (int i = 0; i < data_size; i++) {
-                        printf("%02x ", temp_data[i]);
+                    // printf("   - DEVICE ID: %d\n", temp_header.dev_id);
+                    // printf("   - MESSAGE CLASS: %d\n", temp_header.msg_cls);
+                    // printf("   - SEQUENCE ID: %d\n", temp_header.seq_id);
+                    // printf("   - PAYLOAD LENGTH: %d\n", temp_header.payload_length);
+                    // printf("   - DEVICE MODE: %d\n", temp_header.dev_mode);
+                    // printf("   - PAYLOAD DATA: ");
+                    // for (int i = 0; i < data_size; i++) {
+                    //     printf("%02x ", temp_data[i]);
+                    // }
+                    // printf("\n");
+                    
+                    if(temp_header.msg_cls != TELEMETRY)
+                    {
+                        process_command(temp_header.msg_cls);
+                    } else {
+                        uart1_transmit((uint8_t *)&telemetry_buffer, latest_telemetry_buffer_size);
+                        uart1_transmit((uint8_t *)"\n\n\n\n", 4);
                     }
-                    printf("\n");
                 }
             }
-        }
-
-        peekLatestTelemetry(&latest_telemetry);
-
-        latest_header.seq_id = next_sequence_id();
-        latest_header.msg_cls = TELEMETRY;
-        latest_header.payload_length = sizeof(ascent_telemetry_t);
-
-        if(is_tx_lock())
-        {
-            latest_header.dev_mode = goober_device_mode(GOOBER_MODE_SIMPLEX, true, true, false, false);
         } else {
-            latest_header.dev_mode = goober_device_mode(GOOBER_MODE_HALF_DUPLEX, false, true, false, false);
+            uart1_transmit((uint8_t *)&telemetry_buffer, latest_telemetry_buffer_size);
+            uart1_transmit((uint8_t *)"\n\n\n\n", 4);
         }
 
-        goober_serialize(latest_header, (uint8_t *)&latest_telemetry, sizeof(latest_telemetry), telemetry_buffer, sizeof(telemetry_buffer), &latest_telemetry_buffer_size);
         
-        // uart1_transmit((uint8_t *)&telemetry_buffer, latest_telemetry_buffer_size);
-        // uart1_transmit((uint8_t *)"\n\n\n\n", 4);
-
         cycle = (cycle + 1) % telemetry_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_telemetry);
     }
