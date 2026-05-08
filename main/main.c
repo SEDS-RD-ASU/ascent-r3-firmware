@@ -513,7 +513,7 @@ void telemetry_task(void *pvParameters)
                     // }
                     // printf("\n");
                     
-                    if(temp_header.msg_cls != TELEMETRY)
+                    if(temp_header.msg_cls != REQ_TELEMETRY)
                     {
                         process_command(temp_header.msg_cls);
                     } else {

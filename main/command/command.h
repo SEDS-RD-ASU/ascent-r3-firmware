@@ -29,7 +29,8 @@ enum ascent_message_classes_t {
     SIMULATOR_ON,
     VOLTAGE,
     TELEMETRY,
-    ERASE_FLASH
+    ERASE_FLASH,
+    REQ_TELEMETRY
 };
 
 typedef struct {

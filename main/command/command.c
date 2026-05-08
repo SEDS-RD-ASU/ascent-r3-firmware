@@ -142,6 +142,9 @@ esp_err_t process_command(uint8_t msg_class)
             led_red();
             break;
         }
+        case REQ_TELEMETRY: {
+            break;
+        }
         default: {
             return ESP_ERR_INVALID_ARG;
         }
