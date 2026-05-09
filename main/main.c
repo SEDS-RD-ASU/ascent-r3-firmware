@@ -230,6 +230,7 @@ void primary_task(void *pvParameters)
         uint8_t flight_state = get_flight_state();
         uint8_t pyro_arm = calc_pyro_arm();
         pyro_update_state();
+        pyro_activate(PYRO_CHANNEL_1, 0, true);
 
         atomic_store(&batt_voltage, psu_read_battery_voltage());
 
@@ -675,7 +676,6 @@ void servo_task(void *pvParameters)
 
         // map deflection: 0 -> 100, 1 -> -100
         float angle = 100.0f - (current_deflection * 200.0f);
-        printf("angle: %f\n", angle);
         
         uint32_t target_pulse = SERVO_NEUTRAL_US + (uint32_t)(angle * SERVO_US_PER_DEGREE);
         uint32_t target_duty = (target_pulse * 8192) / period_us;
