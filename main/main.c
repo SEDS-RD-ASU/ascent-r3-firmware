@@ -178,7 +178,7 @@ esp_err_t flight_initialize_devices(void)
     printf("\n\n");
     ESP_LOGI("flight_initialize_devices", "All devices initialized successfully!");
     printf("\n\n");
-`
+
     return ESP_OK;
 }
 

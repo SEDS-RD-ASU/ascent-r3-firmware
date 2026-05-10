@@ -90,9 +90,11 @@ esp_err_t process_command(uint8_t msg_class)
             break;
         }
         case(AUX_ON): {
+            pyro_activate(PYRO_CHANNEL_3, 0, 1);
             break;
         }
         case(AUX_OFF): {
+            pyro_deactivate(PYRO_CHANNEL_3);
             break;
         }
         case(SLEEP): {
@@ -102,6 +104,7 @@ esp_err_t process_command(uint8_t msg_class)
             break;
         }
         case(TXLOCK_ON): {
+            pyro_activate(PYRO_CHANNEL_3, 0, 1);
             enable_txlock();
             break;
         }
