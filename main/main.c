@@ -173,10 +173,12 @@ esp_err_t flight_initialize_devices(void)
     
     print_board_info();
 
+    printf("Voltage: %fV\n" , psu_read_battery_voltage());
+
     printf("\n\n");
     ESP_LOGI("flight_initialize_devices", "All devices initialized successfully!");
     printf("\n\n");
-
+`
     return ESP_OK;
 }
 
@@ -320,7 +322,7 @@ void fast_sensor_task(void *pvParameters)
         atomic_store(&low_g_acc, temp_low_g_acc);
         atomic_store(&gyr, temp_gyr);
 
-        // temp_gps = atomic_load(&gps);
+        temp_gps = atomic_load(&gps);
 
         barometer_velocity_t temp_baro_vel = atomic_load(&baro_vel);
 
