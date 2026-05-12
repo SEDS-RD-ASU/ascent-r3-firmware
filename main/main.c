@@ -135,6 +135,12 @@ esp_err_t flight_initialize_devices(void)
         is_simulator = true;
     #endif
 
+    gpio_set_direction(RF_RST, GPIO_MODE_OUTPUT);
+    gpio_set_level(RF_RST, 0);
+    vTaskDelay(pdMS_TO_TICKS(30));
+    gpio_set_level(RF_RST, 1);
+
+
     ret = buzzer_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE BUZZER"); return ret;}
     ascent_beep(); // beep boop
