@@ -341,7 +341,7 @@ void fast_sensor_task(void *pvParameters)
         atomic_store(&gyr, temp_gyr);
         temp_deflection = atomic_load(&deflection);
 
-        // temp_gps = atomic_load(&gps);
+        temp_gps = atomic_load(&gps);
 
         flash_packet primary_flash_packet = {
             .n = 0,
