@@ -52,6 +52,7 @@
 
 // #define DEBUG
 // #define SIMULATOR
+// #define SERVO_TEST 
 
 //GLOBALS
 _Atomic barometer_sample_t baro;
@@ -598,6 +599,19 @@ void airbrakes_controller_task(void *pvParameters)
     barometer_sample_t current_barometer_sample = {0};
     double feet = 0;
 
+    // do a little test deflection on boot-up
+    high_beep(); high_beep();  low_beep(); low_beep();
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    for (int i = 0; i < 5; i++) {
+        atomic_store(&deflection, 1.0f);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        atomic_store(&deflection, 0.0f);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+
+    high_beep(); high_beep();  low_beep(); low_beep();
+
     while(1)
     {
         cycle = (cycle + 1) % airbrakes_controller_task_frequency;
@@ -619,7 +633,9 @@ void airbrakes_controller_task(void *pvParameters)
             calc_deflection = 0.0f;
         }
 
-        printf("current altitude: %f, current deflection: %f\n", feet, calc_deflection);
+        #ifdef SIMULATOR
+            printf("current altitude: %f, current deflection: %f\n", feet, calc_deflection);
+        #endif
 
         atomic_store(&deflection, calc_deflection);
 
@@ -629,9 +645,9 @@ void airbrakes_controller_task(void *pvParameters)
 
 //MARK: SERVO TASK
 #define SERVO_PIN 45
-#define SERVO_NEUTRAL_US        1520 // Neutral position for WP110T
-#define SERVO_US_PER_DEGREE     6.67f // Based on 300deg sweep over 2000us
-#define SERVO_FREQ_HZ           333
+#define SERVO_NEUTRAL_US        2250 // Neutral position (500-2500us range)
+#define SERVO_FULL_DEFLECT_US   1200 // Full deflection position (deflection = 1.0)
+#define SERVO_FREQ_HZ           330  // Max operating frequency per datasheet
 
 TaskHandle_t servo_task_handle;
 void servo_task(void *pvParameters)
@@ -659,7 +675,58 @@ void servo_task(void *pvParameters)
     ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
     const uint32_t period_us = 1000000 / SERVO_FREQ_HZ;
-    
+
+#ifdef SERVO_TEST
+    // --- SERVO TEST MODE ---
+    // Start at neutral and accept µs values from serial monitor
+    uint32_t current_pulse_us = SERVO_NEUTRAL_US;
+    uint32_t target_duty = (current_pulse_us * 8192) / period_us;
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, target_duty);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
+
+    printf("\n========================================\n");
+    printf("  SERVO TEST MODE\n");
+    printf("  Type a pulse width in µs (500-2500)\n");
+    printf("  Current: %lu µs (neutral)\n", (unsigned long)current_pulse_us);
+    printf("========================================\n\n");
+
+    char input_buf[16];
+    int buf_pos = 0;
+
+    while (1) {
+        uint8_t rx_byte;
+        int len = usb_serial_jtag_read_bytes(&rx_byte, 1, 50 / portTICK_PERIOD_MS);
+        if (len <= 0) continue;
+
+        // Echo the character back
+        usb_serial_jtag_write_bytes(&rx_byte, 1, 20);
+
+        if (rx_byte == '\n' || rx_byte == '\r') {
+            if (buf_pos == 0) continue; // ignore empty lines
+            input_buf[buf_pos] = '\0';
+
+            int val = atoi(input_buf);
+            buf_pos = 0;
+
+            if (val < 500 || val > 2500) {
+                printf("\n  OUT OF RANGE! Enter 500-2500. Got: %d\n> ", val);
+                continue;
+            }
+
+            current_pulse_us = (uint32_t)val;
+            target_duty = (current_pulse_us * 8192) / period_us;
+            ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, target_duty);
+            ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
+
+            printf("\n  SERVO -> %lu µs (duty: %lu/8192)\n> ",
+                   (unsigned long)current_pulse_us, (unsigned long)target_duty);
+        } else if (buf_pos < (int)(sizeof(input_buf) - 1)) {
+            input_buf[buf_pos++] = (char)rx_byte;
+        }
+    }
+
+#else
+    // --- NORMAL FLIGHT MODE ---
     uint8_t current_flight_state = 0;
 
     while(1) {
@@ -674,10 +741,8 @@ void servo_task(void *pvParameters)
             current_deflection = 0.0f;
         }
 
-        // map deflection: 0 -> 100, 1 -> -100
-        float angle = 100.0f - (current_deflection * 200.0f);
-        
-        uint32_t target_pulse = SERVO_NEUTRAL_US + (uint32_t)(angle * SERVO_US_PER_DEGREE);
+        // linear interpolation: deflection 0.0 -> SERVO_NEUTRAL_US, 1.0 -> SERVO_FULL_DEFLECT_US
+        uint32_t target_pulse = SERVO_NEUTRAL_US + (int32_t)(current_deflection * (SERVO_FULL_DEFLECT_US - SERVO_NEUTRAL_US));
         uint32_t target_duty = (target_pulse * 8192) / period_us;
         
         ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, target_duty);
@@ -685,6 +750,7 @@ void servo_task(void *pvParameters)
 
         vTaskDelay(pdMS_TO_TICKS(15));
     }
+#endif
 }
 
 
