@@ -5,6 +5,7 @@
 
 
 //ESP-IDF
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
@@ -45,6 +46,7 @@
 
 // #define DEBUG
 // #define SIMULATOR
+
 
 //GLOBALS
 _Atomic barometer_sample_t baro;
@@ -220,11 +222,21 @@ void primary_task(void *pvParameters)
     gyr_sample_t primary_gyr;
     gps_sample_t primary_gps;
 
+    int32_t aux_timer = 300 * 1000 * 1000;
+
     while (1)
     {
         uint8_t flight_state = get_flight_state();
         uint8_t pyro_arm = calc_pyro_arm();
         pyro_update_state();
+
+        if(atomic_load(&aux_state) == 1) {
+            aux_timer = aux_timer - (1000000/primary_loop_fq);
+            if(aux_timer <= 0) {
+                aux_on();
+                atomic_store(&aux_state, 2);
+            }
+        }
 
         atomic_store(&batt_voltage, psu_read_battery_voltage());
 

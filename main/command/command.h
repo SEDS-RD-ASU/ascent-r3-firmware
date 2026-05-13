@@ -60,4 +60,10 @@ uint8_t next_sequence_id(void);
 
 void initialize_telemetry_queue(void);
 
+void aux_on(void);
+
+void aux_off(void);
+
+extern _Atomic uint8_t aux_state;
+
 #endif

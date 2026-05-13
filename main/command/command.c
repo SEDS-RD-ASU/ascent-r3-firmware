@@ -11,6 +11,7 @@
 #define MAINS PYRO_CHANNEL_2
 
 _Atomic bool TXLOCK = false;
+_Atomic uint8_t aux_state = 0;
 
 static uint8_t command_packet_buf[250];
 
@@ -90,11 +91,11 @@ esp_err_t process_command(uint8_t msg_class)
             break;
         }
         case(AUX_ON): {
-            pyro_activate(PYRO_CHANNEL_3, 0, 1);
+            aux_on();
             break;
         }
         case(AUX_OFF): {
-            pyro_deactivate(PYRO_CHANNEL_3);
+            aux_off();
             break;
         }
         case(SLEEP): {
@@ -104,7 +105,7 @@ esp_err_t process_command(uint8_t msg_class)
             break;
         }
         case(TXLOCK_ON): {
-            pyro_activate(PYRO_CHANNEL_3, 0, 1);
+            atomic_store(&aux_state, 1);
             enable_txlock();
             break;
         }
@@ -194,3 +195,10 @@ esp_err_t single_byte_response(uint16_t resp_msg_cls, uint8_t response_payload)
     return ESP_OK;
 }
 
+void aux_on(){
+    pyro_activate(PYRO_CHANNEL_3, 0, 1);
+}
+
+void aux_off(){
+    pyro_deactivate(PYRO_CHANNEL_3);
+}
