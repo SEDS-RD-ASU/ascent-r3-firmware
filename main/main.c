@@ -337,8 +337,8 @@ void fast_sensor_task(void *pvParameters)
             .timestamp = esp_timer_get_time(),
             .bat_voltage = atomic_load(&batt_voltage),
             .flight_state = get_flight_state(),
-            .pyro_cont = 0, // TODO: REPLACE WITH ACTUAL PYRO LOGIC. FOR DAQ WE DON'T CARE RN.
-            
+            .pyro_cont = calc_pyro_arm(),
+
             .pressure = temp_baro.pressure,
             .temperature = temp_baro.temperature,
             .altitude_agl = temp_baro.altitude_agl,
@@ -432,7 +432,7 @@ void flash_task(void *pvParameters)
 //MARK: TELEMETRY TASK
 // Operates at 1hz on the primary core
 TaskHandle_t telemetry_task_handle;
-int telemetry_loop_fq = 1;
+int telemetry_loop_fq = 5;
 TickType_t xFrequency_telemetry;
 void telemetry_task(void *pvParameters)
 {
