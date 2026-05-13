@@ -224,6 +224,10 @@ static int gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
             uint8_t rx_buffer[256];
             uint16_t len;
             int rc;
+
+            goober_header_t temp_header;
+            uint8_t temp_payload[256];
+            size_t temp_payload_len;
             
             // Read the incoming data from the mbuf
             if (om_len > sizeof(rx_buffer)) {
@@ -243,7 +247,12 @@ static int gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
             }
             printf("\n");
 
-            process_command(rx_buffer[0]);
+            if (goober_deserialize(rx_buffer, len, &temp_header, temp_payload, sizeof(temp_payload), &temp_payload_len) != 0) {
+                MODLOG_DFLT(ERROR, "goober_deserialize failed\n");
+                return BLE_ATT_ERR_UNLIKELY;
+            }
+
+            process_command(temp_header.msg_cls);
             
             return 0;
         }

@@ -192,7 +192,7 @@ esp_err_t flight_initialize_devices(void)
 //MARK: Pyro Beep
 void beep_pyro_cont(void) {
     for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 4; j++) {
+        for (int j = 0; j < 3; j++) {
             if (pyro_continuity(j+1)) high_beep();
             else low_beep();
             vTaskDelay(200 / portTICK_PERIOD_MS);

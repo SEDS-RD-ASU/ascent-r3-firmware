@@ -140,6 +140,7 @@ esp_err_t process_command(uint8_t msg_class)
             break;
         }
         default: {
+            error_beep();
             return ESP_ERR_INVALID_ARG;
         }
     }
