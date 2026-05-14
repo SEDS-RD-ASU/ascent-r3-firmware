@@ -180,6 +180,7 @@ bool flight_update(
             if (count1 >= cfg.apogee_tick_count) {
                 deploy(cfg.Appo_Channel);
                 printf("Deploy appo\n");
+                aux_off();
                 flight_state = FS_UNDER_DROGUES;
             }
             break;
