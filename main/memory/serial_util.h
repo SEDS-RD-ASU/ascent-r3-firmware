@@ -7,6 +7,7 @@
 
 #include "esp_timer.h"
 #include "driver/usb_serial_jtag.h"
+#include "freertos/FreeRTOS.h"
 
 void serial_util_init();
 
