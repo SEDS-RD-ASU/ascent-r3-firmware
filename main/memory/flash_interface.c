@@ -10,6 +10,7 @@
 #include "freertos/semphr.h"
 #include "ascent_r3_hardware_definition.h"
 #include <rom/ets_sys.h>
+#include <stdint.h>
 #include "beep.h"
 
 #include "serial_util.h"
@@ -195,7 +196,7 @@ void flash_dump_to_serial(int bank) {
         addr += sizeof(flash_packet);
 
         bool all = true;
-        char* buf = (char*) &fp;
+        const uint8_t* buf = (uint8_t*) &fp;
         for (int i = 0; i < sizeof(flash_packet); i++) {
             if (buf[i] != 0xFF) all=false;
         }

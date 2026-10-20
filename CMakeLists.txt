@@ -17,6 +17,12 @@ set(EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/goober"
 )
 
+# Have a way to set debug mode from the terminal for HITL
+if(MAKE_SIMULATOR)
+    add_compile_definitions(-DSIMULATOR=1)
+endif()
+
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # "Trim" the build. Include the minimal set of components, main, and anything it depends on.
