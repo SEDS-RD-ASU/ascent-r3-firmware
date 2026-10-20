@@ -19,7 +19,7 @@ set(EXTRA_COMPONENT_DIRS
 
 # Have a way to set debug mode from the terminal for HITL
 if(MAKE_SIMULATOR)
-    add_compile_definitions(-DSIMULATOR=1)
+    add_compile_definitions(SIMULATOR=1)
 endif()
 
 
