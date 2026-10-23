@@ -15,11 +15,9 @@ jobs:
       - name: Build Code
         id: build
         run: |
-          my_temp_file=$(mktemp)
-          echo "temp_file=$my_temp_file" >> "$GITHUB_OUTPUT"
           source /home/hitl/.espressif/tools/activate_idf_v6.1.sh 
           idf.py fullclean
-          idf.py build > "$my_temp_file" 2>&1
+          idf.py build
 
       - name: Post Build Logs to PR
         uses: mshick/add-pr-comment@v3
