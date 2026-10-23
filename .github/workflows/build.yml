@@ -5,8 +5,6 @@ on: [push]
 jobs:
   build:
     runs-on: [self-hosted, HITL]
-    permissions:
-      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4

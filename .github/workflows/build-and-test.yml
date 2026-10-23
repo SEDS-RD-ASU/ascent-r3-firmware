@@ -1,0 +1,24 @@
+name: Locally build the esp-idf firmware.
+
+on: [pull_request]
+
+jobs:
+  build:
+    runs-on: [self-hosted, HITL]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build Code
+        id: build
+        run: |
+              bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py fullclean && idf.py build'
+  test:
+    runs-on: [self-hosted, HITL]
+    needs: build
+    steps:
+      - name: Test Code
+        id: test
+        run: bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py flash'
+          # TODO: Add testing more than just flashing the code.
