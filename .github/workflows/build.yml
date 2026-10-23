@@ -1,0 +1,32 @@
+name: Locally build the esp-idf firmware.
+
+on: [push]
+
+jobs:
+  build_and_flash:
+    runs-on: [self-hosted, HITL]
+    permissions:
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build Code
+        id: build
+        run: |
+          my_temp_file=$(mktemp)
+          echo "temp_file=$my_temp_file" >> "$GITHUB_OUTPUT"
+          source /home/hitl/.espressif/tools/activate_idf_v6.1.sh 
+          idf.py fullclean
+          idf.py build > "$my_temp_file" 2>&1
+
+      - name: Post Build Logs to PR
+        uses: mshick/add-pr-comment@v3
+        if: always() # Ensures logs are posted even if the build step fails
+        with:
+          message-path: ${{ steps.build.outputs.temp_file }}
+
+      - name: Remove Build Log
+        if: always()
+        run: rm -f "${{ steps.build.outputs.temp_file }}"
