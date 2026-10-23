@@ -18,13 +18,4 @@ jobs:
           source /home/hitl/.espressif/tools/activate_idf_v6.1.sh 
           idf.py fullclean
           idf.py build
-
-      - name: Post Build Logs to PR
-        uses: mshick/add-pr-comment@v3
-        if: always() # Ensures logs are posted even if the build step fails
-        with:
-          message-path: ${{ steps.build.outputs.temp_file }}
-
-      - name: Remove Build Log
-        if: always()
-        run: rm -f "${{ steps.build.outputs.temp_file }}"
+          
