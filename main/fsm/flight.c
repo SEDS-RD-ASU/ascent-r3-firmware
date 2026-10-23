@@ -1,4 +1,5 @@
 #include "flight.h"
+#include "event_log.h"
 
 #include "stdint.h"
 #include "math.h"
@@ -16,6 +17,8 @@ static uint8_t flight_state = FS_ON_PAD;
 #define MAINS PYRO_CHANNEL_2
 
 _Atomic flight_config_t flight_config;
+
+static uint32_t event_sequence_number = 0;
 
 void flight_config_init(void) {
     flight_config_t cfg;
@@ -68,7 +71,25 @@ static bool deploy(pyro_channel_t channel)
     for (int i = 0; i < 2; i++) {
         cont = pyro_continuity(channel);
         if (cont) {
-            pyro_activate(channel, 150*(i+1), 0);
+            esp_err_t result = pyro_activate(channel, 150*(i+1), 0);
+
+            if(result == ESP_OK) {
+                event_record_t event_payload = {
+                    .timestamp_us = esp_timer_get_time(),
+                    .sequence_number = event_sequence_number++,
+                    .event_type = EVENT_PYRO_ACTIVATED,
+                    .event_severity = EVENT_SEVERITY_INFO,
+                    .previous_event = 0,
+                    .new_event = channel //appo or mains pyro channel
+                };
+                if(enqueue_event(&event_payload)) {
+                    // Event enqueued successfully
+                    printf("Enqueued pyro activation event for channel %d\n", channel);
+                } else {
+                    printf("Failed to enqueue pyro activation event\n");
+                }
+
+            }
             // vTaskDelay(50 / portTICK_PERIOD_MS);
             cont = pyro_continuity(channel);
             if (!cont) return true;
@@ -91,7 +112,6 @@ bool flight_update(
 
     static int count1 = 0;
     static int count2 = 0;
-
     uint8_t pre = flight_state;
     static bool loaded_flight_config = false;
     // Take an atomic snapshot of the config for consistent reads in this tick
@@ -117,6 +137,14 @@ bool flight_update(
 
             if (count1 >= cfg.lift_off_tick_count) {
                 flight_state = FS_BOOSTER;
+                //log the event update and record it
+                /* uint64_t timestamp_us;
+                int32_t sequence_number;
+                event_type_t event_type;
+                uint8_t event_severity;
+                FlightState previous_state;
+                FlightState new_state;*/
+                
                 if(!is_tx_lock()) {
                     enable_txlock();
                     printf("Activated txlock from FSM\n");
@@ -151,6 +179,7 @@ bool flight_update(
 
             if (count2 >= cfg.apogee_tick_count) {
                 deploy(cfg.Appo_Channel);
+                
                 printf("Deploy appo\n");
                 flight_state = FS_UNDER_DROGUES;
             } else if (count1 >= cfg.lift_off_tick_count) {
@@ -229,6 +258,21 @@ bool flight_update(
     if (flight_state != pre) {
         count1 = 0;
         count2 = 0;
+        event_record_t event_payload = {
+            .timestamp_us = esp_timer_get_time(),
+            .sequence_number = event_sequence_number++,
+            .event_type = EVENT_TYPE_STATE_TRANSITION,
+            .event_severity = EVENT_SEVERITY_INFO,
+            .previous_event = pre,
+            .new_event = flight_state //flight state is an enum
+        };
+        if(enqueue_event(&event_payload)) {
+            // Event enqueued successfully
+            printf("Enqueued flight transition event");
+        } 
+        else {
+            printf("Failed to enqueue flight transition event\n");
+        }
 
         printf("Changing flight state, now: %s\n", get_flight_state_name());
     }
@@ -240,6 +284,8 @@ bool flight_update(
 uint8_t get_flight_state(void) {
     return flight_state;
 }
+
+
 
 const char* get_flight_state_name(void) {
     switch (flight_state) {

@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include "flight_config.h"
 
-enum FlightState
+typedef enum FlightState
 {
     FS_ON_PAD = 0,
     FS_BOOSTER,
@@ -16,7 +16,8 @@ enum FlightState
     FS_UNDER_MAINS,
     FS_LANDED,
     FS_PREFLIGHT,
-};
+} FlightState;
+
 
 // returns if the state changed or not
 

@@ -47,6 +47,7 @@ typedef struct {
     uint8_t landed_tick_count;
 } flight_config_t;
 
+
 extern _Atomic flight_config_t flight_config;
 
 // if this is defined then the board will erase and move to the next flash bank

@@ -22,6 +22,8 @@
 #include "beep.h"
 #include "driver_buzzer.h"
 
+#include "event_log.h"
+
 static const char *TAG = "FLASH INTERFACE";
 
 #define MAX_SECTORS 16384
@@ -282,6 +284,11 @@ void flash_write_packet(flash_packet *packet) {
     }
 }
 
+
+void flash_write_event(const event_record_t *event){
+    
+}   
+
 void flash_queue_packet(flash_packet *packet) {
     packet->n = n++;
     if (xQueueSendToBack(flash_packet_queue, packet, 0) != pdTRUE) {
@@ -297,6 +304,7 @@ void flash_queue_packet(flash_packet *packet) {
         }
         // printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
     }
+
 }
 
 void flash_write_queue(int64_t max_time) {
@@ -313,6 +321,17 @@ void flash_write_queue(int64_t max_time) {
             flash_write_packet(&packet);
         } else {
             break; // Queue is empty
+        }
+    }
+}
+
+void flash_write_event_queue(int64_t max_time){
+    int64_t start = esp_timer_get_time();
+    event_record_t event;
+
+    while((esp_timer_get_time() - start) < max_time){
+        if(xQueueReceive(flash_packet_queue, &packet, 0) == pdTRUE){
+            flash_write_event(&event);
         }
     }
 }

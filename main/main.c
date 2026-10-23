@@ -44,6 +44,8 @@
 //TELEMETRY
 #include "goober.h"
 
+//EVENT LOGGING
+#include "event_log.h"
 // #define DEBUG
 // #define SIMULATOR
 
@@ -434,6 +436,7 @@ void flash_task(void *pvParameters)
         if (flight_state) {
             flash_write_queue(1500);
         }
+         
 
         cycle = (cycle + 1) % flash_task_frequency;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_flash_task);
@@ -457,7 +460,12 @@ void telemetry_task(void *pvParameters)
 
     uint8_t telemetry_buffer[256]; // GOOBER packets cannot be more than 256 bytes
     uint8_t latest_telemetry_buffer_size = 0;
+
+    uint8_t event_buffer[256];
+    uint8_t event_packet_size = 0;
     
+    event_record_t event_payload;
+
 
     goober_header_t latest_header = {
         .dev_id = board_serial_number(),
@@ -466,14 +474,33 @@ void telemetry_task(void *pvParameters)
         .msg_cls = 0, // will be overwritten
         .payload_length = 0, // will be overwritten
     };
-
+    goober_header_t event_radio_header = {
+        .dev_id = board_serial_number(),
+        .dev_mode = 0, // will be overwritten
+        .seq_id = 0, // will be overwritten
+        .msg_cls = 0, // will be overwritten
+        .payload_length = sizeof(event_payload),
+    };
     while(1) {
         peekLatestTelemetry(&latest_telemetry);
 
-        latest_header.seq_id = next_sequence_id();
         latest_header.msg_cls = TELEMETRY;
         latest_header.payload_length = sizeof(ascent_telemetry_t);
-
+         if(dequeue_radio_event(&event_payload)){
+            event_radio_header.seq_id = next_sequence_id();
+            event_radio_header.msg_cls = EVENT_LOG;
+            event_radio_header.payload_length = sizeof(event_payload);
+            if (is_tx_lock())
+            {
+                event_radio_header.dev_mode = goober_device_mode(GOOBER_MODE_SIMPLEX, true, true, false, false);
+            } else {
+                event_radio_header.dev_mode = goober_device_mode(GOOBER_MODE_HALF_DUPLEX, false, true, false, false);
+            }
+            goober_serialize(event_radio_header, (uint8_t *)&event_payload, sizeof(event_payload), event_buffer, sizeof(event_buffer), &event_packet_size);
+            uart1_transmit((uint8_t *)event_buffer, event_packet_size);
+            uart1_transmit((uint8_t *)"\n\n\n\n", 4);
+        }
+        latest_header.seq_id = next_sequence_id();
         if(is_tx_lock())
         {
             latest_header.dev_mode = goober_device_mode(GOOBER_MODE_SIMPLEX, true, true, false, false);
@@ -482,7 +509,6 @@ void telemetry_task(void *pvParameters)
         }
 
         goober_serialize(latest_header, (uint8_t *)&latest_telemetry, sizeof(latest_telemetry), telemetry_buffer, sizeof(telemetry_buffer), &latest_telemetry_buffer_size);
-        
         uart1_transmit((uint8_t *)&telemetry_buffer, latest_telemetry_buffer_size);
         uart1_transmit((uint8_t *)"\n\n\n\n", 4);
 
@@ -621,6 +647,10 @@ void app_main(void)
     // measure_performance();
     
     initialize_telemetry_queue();
+    if(!event_log_init()){
+        ESP_LOGE("app_main", "FAILED TO CREATE EVENT LOG QUEUE");
+        return;
+    }
 
     #ifdef SIMULATOR // todo: replace w/ debug harness logic
         // Configure USB SERIAL JTAG
