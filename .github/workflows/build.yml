@@ -15,7 +15,5 @@ jobs:
       - name: Build Code
         id: build
         run: |
-          source /home/hitl/.espressif/tools/activate_idf_v6.1.sh
-          idf.py fullclean
-          idf.py build
+              bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py fullclean && idf.py build'
           
