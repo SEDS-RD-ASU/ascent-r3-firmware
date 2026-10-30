@@ -18,7 +18,9 @@ jobs:
     runs-on: [self-hosted, HITL]
     needs: build
     steps:
-      - name: Test Code
+      - name: Upload Code
         id: test
-        run: bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py flash'
-          # TODO: Add testing more than just flashing the code.
+        run: |
+          bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py flash'
+          bash -c 'cd /home/hitl/HITL-Test-Scripts/ && git pull'
+          bash -c 'source /home/hitl/HITL-Test-Scripts/.venv/bin/activate && cd /home/hitl/HITL-Test-Scripts/ && python main.py'
