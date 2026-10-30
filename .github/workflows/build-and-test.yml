@@ -23,4 +23,5 @@ jobs:
         run: |
           bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py flash'
           bash -c 'cd /home/hitl/HITL-Test-Scripts/ && git pull'
-          bash -c 'source /home/hitl/HITL-Test-Scripts/.venv/bin/activate && cd /home/hitl/HITL-Test-Scripts/ && python main.py'
+          bash -c "source /home/hitl/HITL-Test-Scripts/.venv/bin/activate && cd /home/hitl/HITL-Test-Scripts/ && \
+          python main.py --log-level ${{ runner.debug == '1' && 'DEBUG' || 'INFO' }}""
