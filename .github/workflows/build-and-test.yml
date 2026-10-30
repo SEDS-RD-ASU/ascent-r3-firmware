@@ -3,7 +3,7 @@ name: Locally build the esp-idf firmware.
 on: [pull_request]
 
 jobs:
-  build:
+  runTests:
     runs-on: [self-hosted, HITL]
 
     steps:
@@ -14,14 +14,12 @@ jobs:
         id: build
         run: |
               bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py fullclean && idf.py -DMAKE_SIMULATOR=1 build'
-  test:
-    runs-on: [self-hosted, HITL]
-    needs: build
-    steps:
       - name: Upload Code
-        id: test
+        id: upload
         run: |
           bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py flash'
           bash -c 'cd /home/hitl/HITL-Test-Scripts/ && git pull'
-          bash -c "source /home/hitl/HITL-Test-Scripts/.venv/bin/activate && cd /home/hitl/HITL-Test-Scripts/ && \
-          python main.py --log-level ${{ runner.debug == '1' && 'DEBUG' || 'INFO' }}""
+      - name: Test
+        id: test
+        run: bash -c "source /home/hitl/HITL-Test-Scripts/.venv/bin/activate && cd /home/hitl/HITL-Test-Scripts/ && \
+          python main.py --log-level ${{ runner.debug == '1' && 'DEBUG' || 'INFO' }}"
