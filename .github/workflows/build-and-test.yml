@@ -13,7 +13,7 @@ jobs:
       - name: Build Code
         id: build
         run: |
-              bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py fullclean && idf.py build'
+              bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py fullclean && idf.py -DMAKE_SIMULATOR=1 build'
   test:
     runs-on: [self-hosted, HITL]
     needs: build
