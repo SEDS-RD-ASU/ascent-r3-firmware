@@ -5,6 +5,7 @@
 
 
 //ESP-IDF
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
@@ -45,6 +46,7 @@
 
 // #define DEBUG
 // #define SIMULATOR
+
 
 //GLOBALS
 _Atomic barometer_sample_t baro;
@@ -135,6 +137,12 @@ esp_err_t flight_initialize_devices(void)
         is_simulator = true;
     #endif
 
+    gpio_set_direction(RF_RST, GPIO_MODE_OUTPUT);
+    gpio_set_level(RF_RST, 0);
+    vTaskDelay(pdMS_TO_TICKS(30));
+    gpio_set_level(RF_RST, 1);
+
+
     ret = buzzer_init();
     if(ret != ESP_OK) {ESP_LOGE("flight_initialize_devices", "FAILED TO INITIALIZE BUZZER"); return ret;}
     ascent_beep(); // beep boop
@@ -173,6 +181,8 @@ esp_err_t flight_initialize_devices(void)
     
     print_board_info();
 
+    printf("Voltage: %fV\n" , psu_read_battery_voltage());
+
     printf("\n\n");
     ESP_LOGI("flight_initialize_devices", "All devices initialized successfully!");
     printf("\n\n");
@@ -184,7 +194,7 @@ esp_err_t flight_initialize_devices(void)
 //MARK: Pyro Beep
 void beep_pyro_cont(void) {
     for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 4; j++) {
+        for (int j = 0; j < 3; j++) {
             if (pyro_continuity(j+1)) high_beep();
             else low_beep();
             vTaskDelay(200 / portTICK_PERIOD_MS);
@@ -212,11 +222,21 @@ void primary_task(void *pvParameters)
     gyr_sample_t primary_gyr;
     gps_sample_t primary_gps;
 
+    int32_t aux_timer = 300 * 1000 * 1000;
+
     while (1)
     {
         uint8_t flight_state = get_flight_state();
         uint8_t pyro_arm = calc_pyro_arm();
         pyro_update_state();
+
+        if(atomic_load(&aux_state) == 1) {
+            aux_timer = aux_timer - (1000000/primary_loop_fq);
+            if(aux_timer <= 0) {
+                aux_on();
+                atomic_store(&aux_state, 2);
+            }
+        }
 
         atomic_store(&batt_voltage, psu_read_battery_voltage());
 
@@ -320,7 +340,7 @@ void fast_sensor_task(void *pvParameters)
         atomic_store(&low_g_acc, temp_low_g_acc);
         atomic_store(&gyr, temp_gyr);
 
-        // temp_gps = atomic_load(&gps);
+        temp_gps = atomic_load(&gps);
 
         barometer_velocity_t temp_baro_vel = atomic_load(&baro_vel);
 
@@ -329,8 +349,8 @@ void fast_sensor_task(void *pvParameters)
             .timestamp = esp_timer_get_time(),
             .bat_voltage = atomic_load(&batt_voltage),
             .flight_state = get_flight_state(),
-            .pyro_cont = 0, // TODO: REPLACE WITH ACTUAL PYRO LOGIC. FOR DAQ WE DON'T CARE RN.
-            
+            .pyro_cont = calc_pyro_arm(),
+
             .pressure = temp_baro.pressure,
             .temperature = temp_baro.temperature,
             .altitude_agl = temp_baro.altitude_agl,
@@ -424,7 +444,7 @@ void flash_task(void *pvParameters)
 //MARK: TELEMETRY TASK
 // Operates at 1hz on the primary core
 TaskHandle_t telemetry_task_handle;
-int telemetry_loop_fq = 1;
+int telemetry_loop_fq = 5;
 TickType_t xFrequency_telemetry;
 void telemetry_task(void *pvParameters)
 {
