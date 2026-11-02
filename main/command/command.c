@@ -1,4 +1,6 @@
 #include "command.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "goober.h"
 #include "nvs_interface.h"
 #include "flash_interface.h"
@@ -16,24 +18,52 @@ _Atomic uint8_t aux_state = 0;
 static uint8_t command_packet_buf[250];
 
 QueueHandle_t telemetryPayloadQueue;
-#define TELEMETRY_QUEUE_SIZE 1
+#define TELEMETRY_QUEUE_SIZE 20
+
+static ascent_telemetry_t latestTelemetryPayload;
+static bool latestTelemetryValid = false;
+static portMUX_TYPE latestTelemetryLock = portMUX_INITIALIZER_UNLOCKED;
 
 void queueLatestTelemetry(ascent_telemetry_t *payload) {
-	xQueueOverwrite(telemetryPayloadQueue, payload);
+    portENTER_CRITICAL(&latestTelemetryLock);
+    latestTelemetryPayload = *payload;
+    latestTelemetryValid = true;
+    portEXIT_CRITICAL(&latestTelemetryLock);
 }
 
 void peekLatestTelemetry(ascent_telemetry_t *payload) {
-	// Use a 100ms timeout instead of portMAX_DELAY to prevent blocking ISRs
-	// If queue is empty, return a zeroed payload
-	if (xQueuePeek(telemetryPayloadQueue, payload, pdMS_TO_TICKS(100)) != pdTRUE) {
-		// Queue is empty or timeout - return a zeroed payload
-		memset(payload, 0, sizeof(ascent_telemetry_t));
-	}
+    portENTER_CRITICAL(&latestTelemetryLock);
+    if (latestTelemetryValid) {
+        *payload = latestTelemetryPayload;
+    } else {
+        memset(payload, 0, sizeof(*payload));
+    }
+    portEXIT_CRITICAL(&latestTelemetryLock);
+}
+
+bool queueTelemetryPayload(const ascent_telemetry_t *payload) {
+    telemetry_queue_item_t item = {
+        .type = TELEMETRY_QUEUE_ITEM_TELEMETRY,
+        .payload.telemetry = *payload,
+    };
+    return xQueueSend(telemetryPayloadQueue, &item, 0) == pdPASS;
+}
+
+bool queueEventPayload(const event_record_t *event) {
+    telemetry_queue_item_t item = {
+        .type = TELEMETRY_QUEUE_ITEM_EVENT,
+        .payload.event = *event,
+    };
+    return xQueueSend(telemetryPayloadQueue, &item, 0) == pdPASS;
+}
+
+bool dequeueTelemetryPayload(telemetry_queue_item_t *item) {
+    return xQueueReceive(telemetryPayloadQueue, item, 0) == pdPASS;
 }
 
 void initialize_telemetry_queue(void)
 {
-    telemetryPayloadQueue = xQueueCreate(TELEMETRY_QUEUE_SIZE, sizeof(ascent_telemetry_t));
+    telemetryPayloadQueue = xQueueCreate(TELEMETRY_QUEUE_SIZE, sizeof(telemetry_queue_item_t));
 }
 
 esp_err_t enable_txlock(void)

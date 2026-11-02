@@ -5,6 +5,7 @@
 #include "esp_err.h"
 #include "stdbool.h"
 #include "stdatomic.h"
+#include "event_log.h"
 
 enum ascent_message_classes_t {
     PING,
@@ -47,6 +48,19 @@ typedef struct {
     uint16_t battery_voltage;  // 2 bytes
 } ascent_telemetry_t;
 
+typedef enum {
+    TELEMETRY_QUEUE_ITEM_TELEMETRY,
+    TELEMETRY_QUEUE_ITEM_EVENT,
+} telemetry_queue_item_type_t;
+
+typedef struct {
+    telemetry_queue_item_type_t type;
+    union {
+        ascent_telemetry_t telemetry;
+        event_record_t event;
+    } payload;
+} telemetry_queue_item_t;
+
 esp_err_t enable_txlock(void);
 
 esp_err_t process_command(uint8_t msg_class);
@@ -56,6 +70,10 @@ bool is_tx_lock();
 void queueLatestTelemetry(ascent_telemetry_t *payload);
 
 void peekLatestTelemetry(ascent_telemetry_t *payload);
+
+bool queueTelemetryPayload(const ascent_telemetry_t *payload);
+bool queueEventPayload(const event_record_t *event);
+bool dequeueTelemetryPayload(telemetry_queue_item_t *item);
 
 uint8_t next_sequence_id(void);
 

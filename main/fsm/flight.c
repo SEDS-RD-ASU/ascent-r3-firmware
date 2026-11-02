@@ -82,7 +82,7 @@ static bool deploy(pyro_channel_t channel)
                     .previous_event = 0,
                     .new_event = channel //appo or mains pyro channel
                 };
-                if(enqueue_event(&event_payload)) {
+                if(queueEventPayload(&event_payload)) {
                     // Event enqueued successfully
                     printf("Enqueued pyro activation event for channel %d\n", channel);
                 } else {
@@ -266,9 +266,9 @@ bool flight_update(
             .previous_event = pre,
             .new_event = flight_state //flight state is an enum
         };
-        if(enqueue_event(&event_payload)) {
+        if(queueEventPayload(&event_payload)) {
             // Event enqueued successfully
-            printf("Enqueued flight transition event");
+            printf("Enqueued flight transition event\n");
         } 
         else {
             printf("Failed to enqueue flight transition event\n");

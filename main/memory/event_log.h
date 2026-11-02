@@ -1,10 +1,7 @@
 #ifndef EVENT_LOG_H
 #define EVENT_LOG_H
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
 #include <stdint.h>
-#include <stdbool.h>
 
 typedef enum {
     EVENT_SEVERITY_INFO = 0,
@@ -30,8 +27,4 @@ typedef struct {
     uint8_t new_event;
 } event_record_t;
 
-bool event_log_init(void);
-bool enqueue_event(const event_record_t *event);
-bool dequeue_radio_event(event_record_t *event);
-bool dequeue_flash_event(event_record_t *event);
-#endif 
+#endif
