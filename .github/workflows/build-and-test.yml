@@ -1,4 +1,4 @@
-name: Locally build the esp-idf firmware.
+name: Locally test the esp-idf firmware.
 
 on: [pull_request]
 
