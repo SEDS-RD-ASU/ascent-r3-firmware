@@ -1,0 +1,25 @@
+name: Locally test the esp-idf firmware.
+
+on: [pull_request]
+
+jobs:
+  runTests:
+    runs-on: [self-hosted, HITL]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build Code
+        id: build
+        run: |
+              bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py fullclean && idf.py -DMAKE_SIMULATOR=1 build'
+      - name: Upload Code
+        id: upload
+        run: |
+          bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py flash'
+          bash -c 'cd /home/hitl/HITL-Test-Scripts/ && git pull'
+      - name: Test
+        id: test
+        run: bash -c "source /home/hitl/HITL-Test-Scripts/.venv/bin/activate && cd /home/hitl/HITL-Test-Scripts/ &&
+          python main.py --log-level ${{ runner.debug == '1' && 'DEBUG' || 'INFO' }}"
