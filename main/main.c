@@ -4,6 +4,7 @@
  */
 
 // ESP-IDF
+#include <stdint.h>
 #include "driver/gptimer.h"
 #include "driver/usb_serial_jtag.h"
 #include "esp_chip_info.h"
@@ -44,13 +45,15 @@
 // #define DEBUG
 // #define SIMULATOR
 
-// GLOBALS
-_Atomic barometer_sample_t   baro;
+
+//GLOBALS
+_Atomic barometer_sample_t baro;
 _Atomic barometer_velocity_t baro_vel;
-_Atomic acc_sample_t         low_g_acc;
-_Atomic acc_sample_t         high_g_acc;
-_Atomic gyr_sample_t         gyr;
-_Atomic gps_sample_t         gps;
+_Atomic acc_sample_t low_g_acc;
+_Atomic acc_sample_t high_g_acc;
+_Atomic gyr_sample_t gyr;
+_Atomic gps_sample_t gps;
+_Atomic double batt_voltage;
 
 // MARK: TESTING UTILITIES.
 // REMOVE THESE BEFORE MERGING TO FLIGHT BRANCH.
@@ -124,9 +127,15 @@ esp_err_t flight_initialize_devices(void) {
     board_information_t board_info;
 
     bool is_simulator = false;
-#ifdef SIMULATOR
-    is_simulator = true;
-#endif
+    #ifdef SIMULATOR
+        is_simulator = true;
+    #endif
+
+    gpio_set_direction(RF_RST, GPIO_MODE_OUTPUT);
+    gpio_set_level(RF_RST, 0);
+    vTaskDelay(pdMS_TO_TICKS(30));
+    gpio_set_level(RF_RST, 1);
+
 
     ret = buzzer_init();
     if (ret != ESP_OK) {
@@ -199,6 +208,8 @@ esp_err_t flight_initialize_devices(void) {
 
     print_board_info();
 
+    printf("Voltage: %fV\n" , psu_read_battery_voltage());
+
     printf("\n\n");
     ESP_LOGI("flight_initialize_devices",
              "All devices initialized successfully!");
@@ -210,8 +221,8 @@ esp_err_t flight_initialize_devices(void) {
 // MARK: Pyro Beep
 void beep_pyro_cont(void) {
     for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 4; j++) {
-            if (pyro_continuity(j + 1)) high_beep();
+        for (int j = 0; j < 3; j++) {
+            if (pyro_continuity(j+1)) high_beep();
             else low_beep();
             vTaskDelay(200 / portTICK_PERIOD_MS);
         }
@@ -219,13 +230,13 @@ void beep_pyro_cont(void) {
     }
 }
 
-// MARK: PRIMARY TASK
-//  Will be running at 50Hz on the primary core.
+//MARK: PRIMARY TASK
+// Will be running at 100Hz on the primary core.
 TaskHandle_t primary_task_handle;
-int          primary_loop_fq = 50;
-TickType_t   xFrequency_primary;
-
-void primary_task(void* pvParameters) {
+int primary_loop_fq = 100;
+TickType_t xFrequency_primary;
+void primary_task(void *pvParameters)
+{
     const TickType_t xFrequency_primary = pdMS_TO_TICKS(1000 / primary_loop_fq);
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -233,28 +244,39 @@ void primary_task(void* pvParameters) {
 
     barometer_sample_t   primary_baro;
     barometer_velocity_t primary_baro_vel;
-    acc_sample_t         primary_low_g_acc;
-    acc_sample_t         primary_high_g_acc;
-    gyr_sample_t         primary_gyr;
-    gps_sample_t         primary_gps;
-    double               batt_voltage = 0;
+    acc_sample_t primary_low_g_acc;
+    acc_sample_t primary_high_g_acc;
+    gyr_sample_t primary_gyr;
+    gps_sample_t primary_gps;
+
+    int32_t aux_timer = 300 * 1000 * 1000;
 
     while (1) {
         uint8_t flight_state = get_flight_state();
         uint8_t pyro_arm     = calc_pyro_arm();
         pyro_update_state();
 
-        primary_baro       = atomic_load(&baro);
-        primary_baro_vel   = atomic_load(&baro_vel);
-        primary_low_g_acc  = atomic_load(&low_g_acc);
+        if (atomic_load(&aux_state) == 1) {
+            aux_timer = aux_timer - (1000000 / primary_loop_fq);
+            if (aux_timer <= 0) {
+                aux_on();
+                atomic_store(&aux_state, 2);
+            }
+        }
+
+        atomic_store(&batt_voltage, psu_read_battery_voltage());
+
+        primary_baro = atomic_load(&baro);
+        primary_baro_vel = atomic_load(&baro_vel);
+        primary_low_g_acc = atomic_load(&low_g_acc);
         primary_high_g_acc = atomic_load(&high_g_acc);
-        primary_gyr        = atomic_load(&gyr);
-        primary_gps        = atomic_load(&gps);
-        batt_voltage       = psu_read_battery_voltage();
+        primary_gyr = atomic_load(&gyr);
+        primary_gps = atomic_load(&gps);
 
         // printf("%f\n", primary_baro.altitude_agl);
 
         baro_update(primary_baro, &primary_baro_vel);
+        atomic_store(&baro_vel, primary_baro_vel);
 
 #ifdef DEBUG // DO NOT MERGE THIS SECTION TO FLIGHT BRANCH.
         printf(
@@ -274,45 +296,7 @@ void primary_task(void* pvParameters) {
             primary_gps.lat, primary_gps.lon, primary_gps.altitude_ellipsoid,
             primary_gps.altitude_msl, primary_gps.fixType,
             primary_gps.num_sats);
-#endif
-
-        flash_packet primary_flash_packet = {
-            .n            = 0,
-            .timestamp    = esp_timer_get_time(),
-            .bat_voltage  = batt_voltage,
-            .flight_state = flight_state,
-            .pyro_cont = 0, // TODO: REPLACE WITH ACTUAL PYRO LOGIC. FOR DAQ WE
-                            // DON'T CARE RN.
-
-            .pressure        = primary_baro.pressure,
-            .temperature     = primary_baro.temperature,
-            .altitude_agl    = primary_baro.altitude_agl,
-            .ground_altitude = primary_baro.ground_altitude,
-            .baro_vel        = primary_baro_vel.velocity,
-            .avg_baro_vel    = primary_baro_vel.average_velocity,
-
-            .UTCtstamp          = primary_gps.UTCtstamp,
-            .lat                = primary_gps.lat,
-            .lon                = primary_gps.lon,
-            .altitude_ellipsoid = primary_gps.altitude_ellipsoid,
-            .altitude_msl       = primary_gps.altitude_msl,
-            .fixType            = primary_gps.fixType,
-            .num_sats           = primary_gps.num_sats,
-
-            .acc_x = primary_low_g_acc.acc_x,
-            .acc_y = primary_low_g_acc.acc_y,
-            .acc_z = primary_low_g_acc.acc_z,
-
-            .hacc_x = primary_high_g_acc.acc_x,
-            .hacc_y = primary_high_g_acc.acc_y,
-            .hacc_z = primary_high_g_acc.acc_z,
-
-            .gyr_x = primary_gyr.gyr_x,
-            .gyr_y = primary_gyr.gyr_y,
-            .gyr_z = primary_gyr.gyr_z,
-        };
-
-        flash_queue_packet(&primary_flash_packet);
+        #endif
 
         ascent_telemetry_t latest_telemetry_payload = {
             .timestamp    = esp_timer_get_time() / 1000, // convert us to ms
@@ -347,39 +331,80 @@ void primary_task(void* pvParameters) {
     }
 }
 
-// MARK: FAST SENSOR TASK
-//  Operates at 100hz on core 1
-TaskHandle_t fast_sensor_task_handle;
-int          fast_sensor_task_frequency = 100;
-TickType_t   xFrequency_fast_sensor_task;
 
-void fast_sensor_task(void* pvParameters) {
-    barometer_sample_t   temp_baro;
-    barometer_velocity_t temp_baro_vel;
-    acc_sample_t         temp_low_g_acc;
-    acc_sample_t         temp_high_g_acc;
-    gyr_sample_t         temp_gyr;
-    gps_sample_t         temp_gps;
+//MARK: FAST SENSOR TASK
+// Operates at 200hz on core 1
+TaskHandle_t fast_sensor_task_handle;
+int fast_sensor_task_frequency = 200;
+TickType_t xFrequency_fast_sensor_task;
+void fast_sensor_task(void *pvParameters)
+{
+    barometer_sample_t temp_baro = {0};
+    acc_sample_t temp_low_g_acc = {0};
+    acc_sample_t temp_high_g_acc = {0};
+    gyr_sample_t temp_gyr = {0};
+    gps_sample_t temp_gps = {0};
 
     const TickType_t xFrequency_fast_sensor_task =
         pdMS_TO_TICKS(1000 / fast_sensor_task_frequency);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     uint32_t   cycle         = 0;
 
-    while (1) {
-        poll_sensors(&temp_baro, &temp_baro_vel, &temp_high_g_acc,
-                     &temp_low_g_acc, &temp_gyr, &temp_gps);
+    while(1)
+    {
+        poll_sensors(&temp_baro, &temp_high_g_acc, &temp_low_g_acc, &temp_gyr, &temp_gps);
 
         atomic_store(&baro, temp_baro);
-        atomic_store(&baro_vel, temp_baro_vel);
         atomic_store(&high_g_acc, temp_high_g_acc);
         atomic_store(&low_g_acc, temp_low_g_acc);
         atomic_store(&gyr, temp_gyr);
-        // atomic_store(&gps, temp_gps); MOVED TO SLOW SENSOR TASK
+
+        temp_gps = atomic_load(&gps);
+
+        barometer_velocity_t temp_baro_vel = atomic_load(&baro_vel);
+
+        flash_packet primary_flash_packet = {
+            .n = 0,
+            .timestamp = esp_timer_get_time(),
+            .bat_voltage = atomic_load(&batt_voltage),
+            .flight_state = get_flight_state(),
+            .pyro_cont = calc_pyro_arm(),
+
+            .pressure = temp_baro.pressure,
+            .temperature = temp_baro.temperature,
+            .altitude_agl = temp_baro.altitude_agl,
+            .ground_altitude = temp_baro.ground_altitude,
+            .baro_vel = temp_baro_vel.velocity,
+            .avg_baro_vel = temp_baro_vel.average_velocity,
+            
+            .UTCtstamp = temp_gps.UTCtstamp,
+            .lat = temp_gps.lat,
+            .lon = temp_gps.lon,
+            .altitude_ellipsoid = temp_gps.altitude_ellipsoid,
+            .altitude_msl = temp_gps.altitude_msl,
+            .fixType = temp_gps.fixType,
+            .num_sats = temp_gps.num_sats,
+
+            .acc_x = temp_low_g_acc.acc_x,
+            .acc_y = temp_low_g_acc.acc_y,
+            .acc_z = temp_low_g_acc.acc_z,
+
+            .hacc_x = temp_high_g_acc.acc_x,
+            .hacc_y = temp_high_g_acc.acc_y,
+            .hacc_z = temp_high_g_acc.acc_z,
+
+            .gyr_x = temp_gyr.gyr_x,
+            .gyr_y = temp_gyr.gyr_y,
+            .gyr_z = temp_gyr.gyr_z,
+        };
+
+        flash_queue_packet(&primary_flash_packet);
 
         cycle = (cycle + 1) % fast_sensor_task_frequency;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_fast_sensor_task);
     }
+
+    
 }
 
 // MARK: SLOW SENSOR TASK
@@ -406,15 +431,15 @@ void slow_sensor_task(void* pvParameters) {
     }
 }
 
-// MARK: FLASH TASK
-//  Operates at 60hz on core 1
-TaskHandle_t flash_task_handle;
-int          flash_task_frequency = 60;
-TickType_t   xFrequency_flash_task;
 
-void flash_task(void* pvParameters) {
-    const TickType_t xFrequency_flash_task =
-        pdMS_TO_TICKS(1000 / flash_task_frequency);
+//MARK: FLASH TASK
+// Operates at 300hz on core 1
+TaskHandle_t flash_task_handle;
+int flash_task_frequency = 300;
+TickType_t xFrequency_flash_task;
+void flash_task(void *pvParameters)
+{
+    const TickType_t xFrequency_flash_task = pdMS_TO_TICKS(1000 / flash_task_frequency);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     uint32_t   cycle         = 0;
 
@@ -425,10 +450,8 @@ void flash_task(void* pvParameters) {
 
         flight_state = get_flight_state();
 
-        if (flash_is_ready_for_flight() &&
-            flight_state > FS_ON_PAD &&
-            flight_state != FS_LANDED) {
-            flash_write_queue(12500);
+        if (flight_state && flash_is_ready_for_flight()) {
+            flash_write_queue(1500);
         }
 
         cycle = (cycle + 1) % flash_task_frequency;
@@ -436,15 +459,15 @@ void flash_task(void* pvParameters) {
     }
 }
 
-// MARK: TELEMETRY TASK
-//  Operates at 60hz on the primary core
-TaskHandle_t telemetry_task_handle;
-int          telemetry_loop_fq = 60;
-TickType_t   xFrequency_telemetry;
 
-void telemetry_task(void* pvParameters) {
-    const TickType_t xFrequency_telemetry =
-        pdMS_TO_TICKS(1000 / telemetry_loop_fq);
+//MARK: TELEMETRY TASK
+// Operates at 1hz on the primary core
+TaskHandle_t telemetry_task_handle;
+int telemetry_loop_fq = 5;
+TickType_t xFrequency_telemetry;
+void telemetry_task(void *pvParameters)
+{
+    const TickType_t xFrequency_telemetry = pdMS_TO_TICKS(1000 / telemetry_loop_fq);
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
     uint32_t   cycle         = 0;
@@ -503,14 +526,17 @@ TaskHandle_t simulator_task_handle;
 void simulator_task(void* pvParameters) {
     uint8_t rx_byte;
     uint8_t accum_buf[SIMULATOR_BUF_SIZE];
-    int     accum_len = 0;
-
-    barometer_sample_t   temp_baro;
-    barometer_velocity_t temp_baro_vel;
-    acc_sample_t         temp_low_g_acc;
-    acc_sample_t         temp_high_g_acc;
-    gyr_sample_t         temp_gyr;
-    gps_sample_t         temp_gps = { .lat = 99, .lon = 99 };
+    int accum_len = 0;
+    
+    barometer_sample_t temp_baro = {0};
+    barometer_velocity_t temp_baro_vel = {0};
+    acc_sample_t temp_low_g_acc = {0};
+    acc_sample_t temp_high_g_acc = {0};
+    gyr_sample_t temp_gyr = {0};
+    gps_sample_t temp_gps = {
+        .lat = 99,
+        .lon = 99
+    };
 
     while (1) {
         int len =
@@ -641,26 +667,13 @@ void app_main(void) {
 #endif
 
     // SECONDARY CORE TASKS
-    xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2,
-                            &fast_sensor_task_handle, 1);
-    xTaskCreatePinnedToCore(slow_sensor_task, "slow_sensor_task", 8192, NULL, 2,
-                            &slow_sensor_task_handle, 1);
-    xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 1,
-                            &flash_task_handle, 1);
-
-#ifdef SIMULATOR
-    ESP_ERROR_CHECK(flash_request_prepare_for_flight() ? ESP_OK : ESP_FAIL);
-
-    xTaskCreatePinnedToCore(simulator_task, "simulator_task",
-                            SIMULATOR_TASK_STACK_SIZE, NULL, 10,
-                            &simulator_task_handle, 1);
-#endif
+    xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2, &fast_sensor_task_handle, 1);
 
     // PRIMARY CORE TASKS
-    xTaskCreatePinnedToCore(telemetry_task, "telemetry_task", 8192, NULL, 1,
-                            &telemetry_task_handle, 0);
-    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1,
-                            &primary_task_handle, 0);
+    xTaskCreatePinnedToCore(telemetry_task, "telemetry_task", 8192, NULL, 1, &telemetry_task_handle, 0);
+    xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 1, &flash_task_handle, 0);
+    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
+    xTaskCreatePinnedToCore(slow_sensor_task, "slow_sensor_task", 8192, NULL, 1, &slow_sensor_task_handle, 0);
 
     led_yellow();
     high_beep();

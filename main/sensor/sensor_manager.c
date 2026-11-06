@@ -168,7 +168,7 @@ static esp_err_t poll_imu(acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_
 // MARK: BAROMETRIC VELOCITY CALCULATION
 #define HISTORY_SIZE 3
 #define VELOCITY_HISTORY_SIZE 10
-#define DT 0.02f // 50hz or 20ms intervals
+#define DT 0.01f // 100hz or 10ms intervals
 
 static float barometric_agl;
 static float barometric_velocity;
@@ -215,11 +215,11 @@ void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel)
     baro_vel->average_velocity = average_barometric_velocity;
 }
 
-void poll_sensors(barometer_sample_t *pBaro, barometer_velocity_t *pBaro_vel, acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr, gps_sample_t *gps)
+void poll_sensors(barometer_sample_t *pBaro, acc_sample_t *high_g, acc_sample_t *low_g, gyr_sample_t *gyr, gps_sample_t *gps)
 {
     if (barometer_data_ready) {
         poll_baro(pBaro);
-        barometer_data_ready = false;
+        barometer_data_ready = true; // Temporarily disabled interrupt reset for preformance testing
         if(simulator)
         {
             barometer_data_ready = true;
