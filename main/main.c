@@ -54,6 +54,7 @@ _Atomic acc_sample_t high_g_acc;
 _Atomic gyr_sample_t gyr;
 _Atomic gps_sample_t gps;
 _Atomic double batt_voltage;
+_Atomic uint8_t pyro_continuity_status;
 
 // MARK: TESTING UTILITIES.
 // REMOVE THESE BEFORE MERGING TO FLIGHT BRANCH.
@@ -254,6 +255,7 @@ void primary_task(void *pvParameters)
     while (1) {
         uint8_t flight_state = get_flight_state();
         uint8_t pyro_arm     = calc_pyro_arm();
+        atomic_store(&pyro_continuity_status, pyro_arm);
         pyro_update_state();
 
         if (atomic_load(&aux_state) == 1) {
@@ -368,7 +370,7 @@ void fast_sensor_task(void *pvParameters)
             .timestamp = esp_timer_get_time(),
             .bat_voltage = atomic_load(&batt_voltage),
             .flight_state = get_flight_state(),
-            .pyro_cont = calc_pyro_arm(),
+            .pyro_cont = atomic_load(&pyro_continuity_status),
 
             .pressure = temp_baro.pressure,
             .temperature = temp_baro.temperature,
