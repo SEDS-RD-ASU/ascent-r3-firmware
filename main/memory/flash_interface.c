@@ -166,6 +166,11 @@ bool flash_request_prepare_for_flight(void) {
         return false;
     }
 
+    if (atomic_load(&flash_ready_for_flight)) {
+        xSemaphoreGive(flash_prepare_mutex);
+        return true;
+    }
+
     xTaskNotifyStateClear(NULL);
 
     if (xQueueSend(flash_control_queue, &request, portMAX_DELAY) != pdTRUE) {
