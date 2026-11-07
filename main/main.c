@@ -45,6 +45,9 @@
 // #define DEBUG
 // #define SIMULATOR
 
+#ifdef SIMULATOR
+#define DISABLE_BUZZER
+#endif
 
 //GLOBALS
 _Atomic barometer_sample_t baro;
