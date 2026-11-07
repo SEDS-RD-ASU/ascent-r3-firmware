@@ -78,9 +78,7 @@ static bool deploy(pyro_channel_t channel)
     return true;
 }
 
-// VS code may say that this is an error bc it can't see APPO_GS but it will compile
-#define APPO_COND (average_barometric_velocity < 0 && fabs(xacc) < APPO_GS)
-
+// Primary flight state machine function
 bool flight_update(
     float barometric_agl,
     float barometric_velocity,
@@ -89,8 +87,15 @@ bool flight_update(
 ) {
     // this function will be called at 50 Hz durring flight, thus every tick is 20 ms
 
-    static int count1 = 0;
-    static int count2 = 0;
+    static uint16_t lift_off_counter = 0;
+    static uint16_t booster_burnout_counter = 0;
+    static uint16_t sustainer_ignition_counter = 0;
+    static uint16_t sustainer_burnout_counter = 0;
+    static uint16_t booster_apogee_counter = 0;
+    static uint16_t sustainer_apogee_counter = 0;
+    static uint16_t panic_descent_counter = 0;
+    static uint16_t main_deployment_counter = 0;
+    static uint16_t landed_counter = 0;
 
     uint8_t pre = flight_state;
     static bool loaded_flight_config = false;
@@ -109,13 +114,15 @@ bool flight_update(
             // break;
 
         case FS_ON_PAD:
+            cfg = atomic_load(&flight_config); // reload the config in case it was changed
+
             if (xacc > cfg.lift_off_acceleration_threshold) {
-                count1++;
+                lift_off_counter++;
             } else {
-                count1 = 0;
+                lift_off_counter = 0;
             }
 
-            if (count1 >= cfg.lift_off_tick_count) {
+            if (lift_off_counter >= cfg.lift_off_tick_count) {
                 flight_state = FS_BOOSTER;
                 if(!is_tx_lock()) {
                     enable_txlock();
@@ -126,59 +133,59 @@ bool flight_update(
 
         case FS_BOOSTER:
             if (xacc < cfg.burnout_acceleration_threshold) {
-                count1++;
+                booster_burnout_counter++;
             } else {
-                count1 = 0;
+                booster_burnout_counter = 0;
             }
 
-            if (count1 >= cfg.burnout_tick_count) {
+            if (booster_burnout_counter >= cfg.burnout_tick_count) {
                 flight_state = FS_COAST_BOOSTER;
             }
             break;
 
         case FS_COAST_BOOSTER:
             if (xacc > cfg.lift_off_acceleration_threshold) {
-                count1++;
+                sustainer_ignition_counter++;
             } else {
-                count1 = 0;
+                sustainer_ignition_counter = 0;
             }
 
-            if (APPO_COND) {
-                count2++;
+            if (average_barometric_velocity < 0 && fabsf(xacc) < cfg.apogee_acceleration_threshold) {
+                booster_apogee_counter++;
             } else {
-                count2 = 0;
+                booster_apogee_counter = 0;
             }
 
-            if (count2 >= cfg.apogee_tick_count) {
+            if (booster_apogee_counter >= cfg.apogee_tick_count) {
                 deploy(cfg.Appo_Channel);
                 printf("Deploy appo\n");
                 flight_state = FS_UNDER_DROGUES;
-            } else if (count1 >= cfg.lift_off_tick_count) {
+            } else if (sustainer_ignition_counter >= cfg.lift_off_tick_count) {
                 flight_state = FS_SUSTAINER;
             }
             break;
 
         case FS_SUSTAINER:
             if (xacc < cfg.burnout_acceleration_threshold) {
-                count1++;
+                sustainer_burnout_counter++;
             } else {
-                count1 = 0;
+                sustainer_burnout_counter = 0;
             }
 
-            if (count1 >= cfg.burnout_tick_count) {
+            if (sustainer_burnout_counter >= cfg.burnout_tick_count) {
                 flight_state = FS_COAST_SUSTAINER;
             }
             break;
 
         case FS_COAST_SUSTAINER:
-            if (APPO_COND) {
-                count1++;
+            if (average_barometric_velocity < 0 && fabsf(xacc) < cfg.apogee_acceleration_threshold) {
+                sustainer_apogee_counter++;
             } else {
-                count1 = 0;
+                sustainer_apogee_counter = 0;
             }
 
-            if (count1 >= cfg.apogee_tick_count) {
-                deploy(cfg.Appo_Channel);
+            if (sustainer_apogee_counter >= cfg.apogee_tick_count) {
+                deploy(cfg.Appo_Channel); // TODO: validate the deployment before transition
                 printf("Deploy appo\n");
                 aux_off();
                 flight_state = FS_UNDER_DROGUES;
@@ -187,19 +194,19 @@ bool flight_update(
 
         case FS_UNDER_DROGUES:
             if (average_barometric_velocity < cfg.panic_velocity_threshold) {
-                count1++;
+                panic_descent_counter++;
             } else {
-                count1 = 0;
+                panic_descent_counter = 0;
             }
 
             if (barometric_agl < cfg.main_deployment_altitude) {
-                count2++;
+                main_deployment_counter++;
             } else {
-                count2 = 0;
+                main_deployment_counter = 0;
             }
 
-            if (count1 >= 50 || count2 >= cfg.main_deployment_tick_count) {
-                deploy(cfg.Mains_Channel);
+            if (panic_descent_counter >= 50 || main_deployment_counter >= cfg.main_deployment_tick_count) {
+                deploy(cfg.Mains_Channel); // TODO: validate the deployment before transition
                 printf("Deploy Mains\n");
                 flight_state = FS_UNDER_MAINS;
             }
@@ -207,13 +214,13 @@ bool flight_update(
 
         case FS_UNDER_MAINS:
             if (barometric_agl < cfg.highest_ground_elevation && fabs(average_barometric_velocity) < cfg.landed_velocity_threshold) {
-                count1++;
+                landed_counter++;
             } else {
-                count1 = 0;
+                landed_counter = 0;
             }
 
-            // for 6 seconds
-            if (count1 >= cfg.landed_tick_count) {
+
+            if (landed_counter >= cfg.landed_tick_count) {
                 flight_state = FS_LANDED;
             }
             break;
@@ -227,12 +234,18 @@ bool flight_update(
     // reset the counters if we changed flight states
     // the next state needs to have the counters at zero
     if (flight_state != pre) {
-        count1 = 0;
-        count2 = 0;
+        lift_off_counter = 0;
+        booster_burnout_counter = 0;
+        sustainer_ignition_counter = 0;
+        sustainer_burnout_counter = 0;
+        booster_apogee_counter = 0;
+        sustainer_apogee_counter = 0;
+        panic_descent_counter = 0;
+        main_deployment_counter = 0;
+        landed_counter = 0;
 
         printf("Changing flight state, now: %s\n", get_flight_state_name());
     }
-
     return flight_state != pre;
 
 }

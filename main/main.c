@@ -282,7 +282,9 @@ void primary_task(void *pvParameters)
             primary_gps.fixType,
             primary_gps.num_sats);
         #endif
-
+        
+        flight_update(primary_baro.altitude_agl, primary_baro_vel.velocity, primary_baro_vel.average_velocity, primary_low_g_acc.acc_y);
+        
         ascent_telemetry_t latest_telemetry_payload = {
             .timestamp = esp_timer_get_time() / 1000, // convert us to ms
             .latitude = primary_gps.lat,
@@ -306,8 +308,6 @@ void primary_task(void *pvParameters)
             // Do something while not flying
         }
 
-        flight_update(primary_baro.altitude_agl, primary_baro_vel.velocity, primary_baro_vel.average_velocity, primary_low_g_acc.acc_y);
-        
         cycle = (cycle + 1) % primary_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_primary);
     }
