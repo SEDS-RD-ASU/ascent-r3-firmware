@@ -1,0 +1,50 @@
+name: HITL
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  hitl:
+    runs-on: [self-hosted, linux, hitl]
+    timeout-minutes: 30
+    env:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      FIRMWARE_DIR: ${{ github.workspace }}
+      SITL_DIR: ${{ github.workspace }}/ascent-sitl
+      IDF_ACTIVATE_SCRIPT: /home/hitl/.espressif/tools/activate_idf_v6.1.sh
+    steps:
+      - name: Check out firmware
+        uses: actions/checkout@v4
+
+      - name: Check out HITL scripts
+        uses: actions/checkout@v4
+        with:
+          repository: SEDS-RD-ASU/HITL-Test-Scripts
+          path: hitl-test-scripts
+
+      - name: Check out SITL data
+        uses: actions/checkout@v4
+        with:
+          repository: SEDS-RD-ASU/ascent-sitl
+          path: ascent-sitl
+
+      - name: Install Python dependencies
+        working-directory: hitl-test-scripts
+        run: python3 -m pip install -r requirements.txt
+
+      - name: Compile, flash, run HITL, and report to Discord
+        working-directory: hitl-test-scripts
+        run: python3 main.py --port "${HITL_PORT}" --baudrate 460800
+        env:
+          HITL_PORT: ${{ vars.HITL_PORT }}
+
+      - name: Upload HITL dump
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hitl-dump-${{ github.run_id }}
+          path: |
+            hitl-test-scripts/dump/*.csv
+            hitl-test-scripts/dump/*.dt.png
+          if-no-files-found: ignore
