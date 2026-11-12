@@ -498,7 +498,24 @@ void telemetry_task(void *pvParameters)
 #define SIMULATOR_BUF_SIZE (1024)
 #define DELIMITER "\n\n\n\n"
 #define DELIMITER_LEN 4
+#define SIMULATOR_PREPARE_COMMAND "PREPARE"
+#define SIMULATOR_PREPARE_COMMAND_LEN (sizeof(SIMULATOR_PREPARE_COMMAND) - 1)
 TaskHandle_t simulator_task_handle;
+
+static void simulator_prepare_for_flight(void)
+{
+    esp_err_t command_ret = process_command(TXLOCK_ON);
+    if (command_ret == ESP_OK) {
+        usb_serial_jtag_write_bytes(
+            "SITL data is ready to enter flight computer\n",
+            sizeof("SITL data is ready to enter flight computer\n") - 1,
+            20);
+    } else {
+        ESP_LOGE("simulator_task", "Failed to process PREPARE command: %s",
+            esp_err_to_name(command_ret));
+    }
+}
+
 void simulator_task(void *pvParameters)
 {
     uint8_t rx_byte;
@@ -529,13 +546,26 @@ void simulator_task(void *pvParameters)
             continue;
         }
 
+        if (accum_len == SIMULATOR_PREPARE_COMMAND_LEN + 1 &&
+            memcmp(accum_buf, SIMULATOR_PREPARE_COMMAND,
+                SIMULATOR_PREPARE_COMMAND_LEN) == 0 &&
+            accum_buf[SIMULATOR_PREPARE_COMMAND_LEN] == '\n') {
+            simulator_prepare_for_flight();
+            accum_len = 0;
+            continue;
+        }
+
         // Check for delimiter at the end of the buffer
         if (accum_len >= DELIMITER_LEN &&
             memcmp(&accum_buf[accum_len - DELIMITER_LEN], DELIMITER, DELIMITER_LEN) == 0)
         {
             int payload_len = accum_len - DELIMITER_LEN;
 
-            if (payload_len == sizeof(flash_packet)) {
+            if (payload_len == SIMULATOR_PREPARE_COMMAND_LEN &&
+                memcmp(accum_buf, SIMULATOR_PREPARE_COMMAND,
+                    SIMULATOR_PREPARE_COMMAND_LEN) == 0) {
+                simulator_prepare_for_flight();
+            } else if (payload_len == sizeof(flash_packet)) {
                 flash_packet *packet = (flash_packet *)accum_buf;
                 // Parse all fields from the flash_packet into the temp_* variables
                 temp_baro.pressure = packet->pressure;
