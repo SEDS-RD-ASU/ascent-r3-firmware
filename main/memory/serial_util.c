@@ -6,6 +6,15 @@ void serial_util_init() {
         .tx_buffer_size = 1024,
     };
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&cfg));
+    // Route printf through the driver too, so text and binary writes share one ordered TX path
+    fflush(stdout);
+    usb_serial_jtag_vfs_use_driver();
+}
+
+void serial_util_deinit() {
+    fflush(stdout);
+    usb_serial_jtag_vfs_use_nonblocking();
+    usb_serial_jtag_driver_uninstall();
 }
 
 bool serial_util_readline_nonblocking(char *buf, int buf_len, int *index_ptr, TickType_t timeout_ticks)

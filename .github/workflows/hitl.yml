@@ -94,7 +94,7 @@ jobs:
             --port "${HITL_PORT}" \
             --baudrate 460800 \
             --prebuilt-dir "${GITHUB_WORKSPACE}/prebuilt" \
-            --data-path "${GITHUB_WORKSPACE}/hitl-test-scripts/src/send_fake_data/sim_flight_data/scratchy_flight_data.csv"
+            --data-path "${GITHUB_WORKSPACE}/hitl-test-scripts/src/send_fake_data/sim_flight_data/irec2026.csv"
         env:
           HITL_PORT: ${{ vars.HITL_PORT || '/dev/ttyACM0' }}
 
