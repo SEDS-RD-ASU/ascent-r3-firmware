@@ -200,48 +200,58 @@ static bool serial_write_all(const char *data, size_t length) {
     return true;
 }
 
+// Binary dump protocol (after the text line "BINARY DUMP START <packet size>\n"):
+// repeated [uint32 little-endian byte count][that many bytes of raw flash_packets],
+// terminated by a zero byte count, then the text line "FINISHED DUMPING DATA\n".
+#define DUMP_PACKETS_PER_CHUNK 60 // 60 * 136 = 8160 bytes, within the 8192-byte SPI transaction limit
+static uint8_t dump_chunk[DUMP_PACKETS_PER_CHUNK * sizeof(flash_packet)];
+
 void flash_dump_to_serial(int bank) {
-    flash_packet fp;
+    char header[64];
+    int header_len = snprintf(header, sizeof(header), "BINARY DUMP START %d\n", (int)sizeof(flash_packet));
+    fflush(stdout);
+    if (!serial_write_all(header, (size_t)header_len)) return;
 
-    printf("DUMPING DATA FROM BANK: %d\n", bank);
-    vTaskDelay(5000 / portTICK_PERIOD_MS);
-
+    uint32_t bank_end = BANK_SIZE*bank + BANK_SIZE;
+    if (bank_end > MAX_SECTORS*SECTOR_SIZE) bank_end = MAX_SECTORS*SECTOR_SIZE;
     addr = BANK_SIZE*bank;
-    printf("n, timestamp, bat_voltage, flight_state, pyro_cont, pressure, temperature, altitude_agl, ground_altitude, baro_vel, avg_baro_vel, UTCtstamp, lat, lon, altitude_ellipsoid, altitude_msl, fixType, num_sats, acc_x, acc_y, acc_z, hacc_x, hacc_y, hacc_z, gyr_x, gyr_y, gyr_z\n");
-    while (addr < MAX_SECTORS*SECTOR_SIZE && addr < BANK_SIZE*bank + BANK_SIZE) {
-        w25qxx_read(addr, (uint8_t*)&fp, sizeof(flash_packet));
-        addr += sizeof(flash_packet);
 
-        bool all = true;
-        const uint8_t* buf = (uint8_t*) &fp;
-        for (int i = 0; i < sizeof(flash_packet); i++) {
-            if (buf[i] != 0xFF) all=false;
+    bool done = false;
+    while (!done) {
+        uint32_t packets = (bank_end - addr) / sizeof(flash_packet);
+        if (packets > DUMP_PACKETS_PER_CHUNK) packets = DUMP_PACKETS_PER_CHUNK;
+        if (packets == 0) break;
+
+        w25qxx_read(addr, dump_chunk, packets * sizeof(flash_packet));
+
+        // Stop at the first fully erased packet.
+        uint32_t valid = 0;
+        while (valid < packets) {
+            const uint8_t *p = dump_chunk + valid * sizeof(flash_packet);
+            bool erased = true;
+            for (int i = 0; i < sizeof(flash_packet); i++) {
+                if (p[i] != 0xFF) { erased = false; break; }
+            }
+            if (erased) { done = true; break; }
+            valid++;
         }
-        if (all) break;
+        addr += packets * sizeof(flash_packet);
 
-        char row[768];
-        int row_len = snprintf(row, sizeof(row),
-            "%llu,%"PRId64",%f,%d,%d,%f,%f,%f,%f,%f,%f,%lu,%lu,%lu,%lu,%lu,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f\n",
-            fp.n, fp.timestamp, fp.bat_voltage, fp.flight_state, fp.pyro_cont,
-            fp.pressure, fp.temperature, fp.altitude_agl, fp.ground_altitude,
-            fp.baro_vel, fp.avg_baro_vel, fp.UTCtstamp, fp.lat, fp.lon,
-            fp.altitude_ellipsoid, fp.altitude_msl, fp.fixType, fp.num_sats,
-            fp.acc_x, fp.acc_y, fp.acc_z, fp.hacc_x, fp.hacc_y, fp.hacc_z,
-            fp.gyr_x, fp.gyr_y, fp.gyr_z);
-        if (row_len < 0 || row_len >= (int)sizeof(row)) {
-            ESP_LOGE("FLASH INTERFACE", "Flash packet row exceeded dump buffer");
-            break;
-        }
-
-        if (!serial_write_all(row, (size_t)row_len)) {
-            ESP_LOGE("FLASH INTERFACE", "Failed to write flash packet row");
+        if (valid == 0) break;
+        uint32_t len = valid * sizeof(flash_packet);
+        if (!serial_write_all((const char *)&len, sizeof(len)) ||
+            !serial_write_all((const char *)dump_chunk, len)) {
+            ESP_LOGE("FLASH INTERFACE", "Failed to write flash dump chunk");
             return;
         }
     }
 
-    flash_erase_jingle();
+    uint32_t zero = 0;
+    serial_write_all((const char *)&zero, sizeof(zero));
+    const char *finished = "FINISHED DUMPING DATA\n";
+    serial_write_all(finished, strlen(finished));
 
-    printf("FINISHED DUMPING DATA\n");
+    flash_erase_jingle();
 }
 
 void flash_write_packet(flash_packet *packet) {
