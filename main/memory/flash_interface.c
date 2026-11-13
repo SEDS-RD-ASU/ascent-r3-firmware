@@ -47,7 +47,7 @@ static const char* bank_keys[BANKS] = {
     "bank_3",
 };
 
-#define RING_BUFFER_SIZE 50
+#define RING_BUFFER_SIZE 125
 QueueHandle_t flash_packet_queue;
 
 void flash_erase_jingle(void);

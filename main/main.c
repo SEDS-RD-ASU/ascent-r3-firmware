@@ -317,9 +317,9 @@ void primary_task(void *pvParameters)
 
 
 //MARK: FAST SENSOR TASK
-// Operates at 200Hz on core 0
+// Operates at 500Hz on core 0
 TaskHandle_t fast_sensor_task_handle;
-int fast_sensor_task_frequency = 200;
+int fast_sensor_task_frequency = 500;
 TickType_t xFrequency_fast_sensor_task;
 void fast_sensor_task(void *pvParameters)
 {
@@ -438,7 +438,7 @@ void flash_task(void *pvParameters)
         flight_state = get_flight_state();
 
         if (flight_state) {
-            flash_write_queue(1500);
+            flash_write_queue(2500);
         }
 
         cycle = (cycle + 1) % flash_task_frequency;
