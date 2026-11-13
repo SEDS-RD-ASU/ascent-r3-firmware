@@ -3,6 +3,7 @@
 #include "ascent_r3_hardware_definition.h"
 #include "assert.h"
 #include "beep.h"
+#include "stdio.h"
 #include "driver_w25qxx.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -239,6 +240,18 @@ static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t* resume) {
     }
 }
 
+
+static bool serial_write_all(const char *data, size_t length) {
+    size_t written = 0;
+    while (written < length) {
+        int result = usb_serial_jtag_write_bytes(
+            data + written, length - written, portMAX_DELAY);
+        if (result <= 0) return false;
+        written += (size_t)result;
+    }
+    return true;
+}
+
 void flash_dump_to_serial(int bank) {
     flash_packet fp;
 
@@ -263,40 +276,24 @@ void flash_dump_to_serial(int bank) {
         }
         if (all) break;
 
-        printf("%llu,", fp.n);
-        printf("%" PRId64 ",", fp.timestamp);
-        printf("%f,", fp.bat_voltage);
-        printf("%d,", fp.flight_state);
-        printf("%d,", fp.pyro_cont);
+        char row[768];
+        int row_len = snprintf(row, sizeof(row),
+            "%llu,%"PRId64",%f,%d,%d,%f,%f,%f,%f,%f,%f,%lu,%lu,%lu,%lu,%lu,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f\n",
+            fp.n, fp.timestamp, fp.bat_voltage, fp.flight_state, fp.pyro_cont,
+            fp.pressure, fp.temperature, fp.altitude_agl, fp.ground_altitude,
+            fp.baro_vel, fp.avg_baro_vel, fp.UTCtstamp, fp.lat, fp.lon,
+            fp.altitude_ellipsoid, fp.altitude_msl, fp.fixType, fp.num_sats,
+            fp.acc_x, fp.acc_y, fp.acc_z, fp.hacc_x, fp.hacc_y, fp.hacc_z,
+            fp.gyr_x, fp.gyr_y, fp.gyr_z);
+        if (row_len < 0 || row_len >= (int)sizeof(row)) {
+            ESP_LOGE("FLASH INTERFACE", "Flash packet row exceeded dump buffer");
+            break;
+        }
 
-        printf("%f,", fp.pressure);
-        printf("%f,", fp.temperature);
-        printf("%f,", fp.altitude_agl);
-        printf("%f,", fp.ground_altitude);
-        printf("%f,", fp.baro_vel);
-        printf("%f,", fp.avg_baro_vel);
-
-        printf("%lu,", fp.UTCtstamp);
-        printf("%lu,", fp.lat);
-        printf("%lu,", fp.lon);
-        printf("%lu,", fp.altitude_ellipsoid);
-        printf("%lu,", fp.altitude_msl);
-        printf("%d,", fp.fixType);
-        printf("%d,", fp.num_sats);
-
-        printf("%f,", fp.acc_x);
-        printf("%f,", fp.acc_y);
-        printf("%f,", fp.acc_z);
-
-        printf("%f,", fp.hacc_x);
-        printf("%f,", fp.hacc_y);
-        printf("%f,", fp.hacc_z);
-
-        printf("%f,", fp.gyr_x);
-        printf("%f,", fp.gyr_y);
-        printf("%f", fp.gyr_z);
-
-        printf("\n");
+        if (!serial_write_all(row, (size_t)row_len)) {
+            ESP_LOGE("FLASH INTERFACE", "Failed to write flash packet row");
+            return;
+        }
     }
 
     flash_erase_jingle();
