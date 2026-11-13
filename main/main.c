@@ -626,7 +626,7 @@ void simulator_task(void *pvParameters)
 
                 feed_fake_flight_data(temp_baro, temp_baro_vel, temp_high_g_acc,
                                       temp_low_g_acc, temp_gyr, temp_gps);
-                usb_serial_jtag_write_bytes("ACK", 4, 20);
+                usb_serial_jtag_write_bytes("SITL ACK", sizeof("SITL ACK"), 20);
 
             } else {
                 char warn_buf[64];
