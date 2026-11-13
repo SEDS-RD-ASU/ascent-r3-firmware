@@ -317,9 +317,9 @@ void primary_task(void *pvParameters)
 
 
 //MARK: FAST SENSOR TASK
-// Operates at 500Hz on core 0
+// Operates at 1000Hz on core 0
 TaskHandle_t fast_sensor_task_handle;
-int fast_sensor_task_frequency = 500;
+int fast_sensor_task_frequency = 1000;
 TickType_t xFrequency_fast_sensor_task;
 void fast_sensor_task(void *pvParameters)
 {
@@ -529,6 +529,9 @@ static void simulator_prepare_for_flight(void)
 void simulator_task(void *pvParameters)
 {
     uint8_t rx_byte;
+    uint8_t rx_chunk[256];
+    int rx_len = 0;
+    int rx_pos = 0;
     uint8_t accum_buf[SIMULATOR_BUF_SIZE];
     int accum_len = 0;
     
@@ -543,8 +546,12 @@ void simulator_task(void *pvParameters)
     };
 
     while (1) {
-        int len = usb_serial_jtag_read_bytes(&rx_byte, 1, 20 / portTICK_PERIOD_MS);
-        if (len <= 0) continue;
+        if (rx_pos >= rx_len) {
+            rx_len = usb_serial_jtag_read_bytes(rx_chunk, sizeof(rx_chunk), 20 / portTICK_PERIOD_MS);
+            rx_pos = 0;
+            if (rx_len <= 0) continue;
+        }
+        rx_byte = rx_chunk[rx_pos++];
 
         if (accum_len < SIMULATOR_BUF_SIZE) {
             accum_buf[accum_len++] = rx_byte;
