@@ -72,6 +72,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: SEDS-RD-ASU/HITL-Test-Scripts
+          ref: faster_dumps
           path: hitl-test-scripts
 
       - name: Check out SITL data
