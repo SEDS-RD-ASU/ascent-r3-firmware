@@ -357,14 +357,18 @@ void try_to_dump_data() {
     while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
         if (strcmp("DUMP", buf) == 0) {
             while (true) {
+                // Print the prompt once per request. Re-printing it on every read
+                // timeout injected text into the stream the host was parsing as binary.
                 printf("Enter the bank to dump (last bank used: %ld):\n", flash_get_last_used_bank());
-                while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
-                    int bank = atoi(buf);
-                    flash_dump_to_serial(bank);
-                    for (int j = 0; j < 3; j++) {
-                        flash_erase_jingle();
-                        vTaskDelay(pdMS_TO_TICKS(500));
-                    }
+                fflush(stdout);
+                while (!serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
+                    // keep waiting for a complete line
+                }
+                int bank = atoi(buf);
+                flash_dump_to_serial(bank);
+                for (int j = 0; j < 3; j++) {
+                    flash_erase_jingle();
+                    vTaskDelay(pdMS_TO_TICKS(500));
                 }
             }
         }
