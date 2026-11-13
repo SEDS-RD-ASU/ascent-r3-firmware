@@ -309,7 +309,9 @@ void primary_task(void *pvParameters)
         }
 
         cycle = (cycle + 1) % primary_loop_fq;
-        vTaskDelayUntil(&xLastWakeTime, xFrequency_primary);
+        if (xTaskDelayUntil(&xLastWakeTime, xFrequency_primary) == pdFALSE) {
+            xLastWakeTime = xTaskGetTickCount(); // overran (e.g. blocking flash erase): skip missed periods instead of bursting to catch up
+        }
     }
 }
 
@@ -382,7 +384,9 @@ void fast_sensor_task(void *pvParameters)
         flash_queue_packet(&primary_flash_packet);
 
         cycle = (cycle + 1) % fast_sensor_task_frequency;
-        vTaskDelayUntil(&xLastWakeTime, xFrequency_fast_sensor_task);
+        if (xTaskDelayUntil(&xLastWakeTime, xFrequency_fast_sensor_task) == pdFALSE) {
+            xLastWakeTime = xTaskGetTickCount(); // overran (e.g. blocking flash erase): skip missed periods instead of bursting to catch up
+        }
     }
 
     
@@ -409,7 +413,9 @@ void slow_sensor_task(void *pvParameters)
         atomic_store(&gps, temp_gps);
 
         cycle = (cycle + 1) % slow_sensor_frequency;
-        vTaskDelayUntil(&xLastWakeTime, xFrequency_slow_sensor);
+        if (xTaskDelayUntil(&xLastWakeTime, xFrequency_slow_sensor) == pdFALSE) {
+            xLastWakeTime = xTaskGetTickCount(); // overran (e.g. blocking flash erase): skip missed periods instead of bursting to catch up
+        }
     }
 }
 
@@ -436,7 +442,9 @@ void flash_task(void *pvParameters)
         }
 
         cycle = (cycle + 1) % flash_task_frequency;
-        vTaskDelayUntil(&xLastWakeTime, xFrequency_flash_task);
+        if (xTaskDelayUntil(&xLastWakeTime, xFrequency_flash_task) == pdFALSE) {
+            xLastWakeTime = xTaskGetTickCount(); // overran (e.g. blocking flash erase): skip missed periods instead of bursting to catch up
+        }
     }
 }
 
@@ -487,7 +495,9 @@ void telemetry_task(void *pvParameters)
         uart1_transmit((uint8_t *)"\n\n\n\n", 4);
 
         cycle = (cycle + 1) % telemetry_loop_fq;
-        vTaskDelayUntil(&xLastWakeTime, xFrequency_telemetry);
+        if (xTaskDelayUntil(&xLastWakeTime, xFrequency_telemetry) == pdFALSE) {
+            xLastWakeTime = xTaskGetTickCount(); // overran (e.g. blocking flash erase): skip missed periods instead of bursting to catch up
+        }
     }
 }
 
