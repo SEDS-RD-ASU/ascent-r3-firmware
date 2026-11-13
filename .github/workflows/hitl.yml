@@ -37,16 +37,6 @@ jobs:
           python3 -m venv .venv
           .venv/bin/python -m pip install -r requirements.txt
 
-      - name: Select Scratchy flight data
-        run: |
-          if [ -f ascent-sitl/sim_flight_data/scratchy_flight_data.csv ]; then
-            cp ascent-sitl/sim_flight_data/scratchy_flight_data.csv \
-              hitl-test-scripts/src/send_fake_data/sim_flight_data/packets_1_200hz.csv
-          else
-            cp ascent-sitl/sim_flight_data/packets_1_200hz.csv \
-              hitl-test-scripts/src/send_fake_data/sim_flight_data/packets_1_200hz.csv
-          fi
-
       - name: Compile firmware
         run: |
           bash -lc 'source "$IDF_ACTIVATE_SCRIPT" && idf.py build'
@@ -57,7 +47,7 @@ jobs:
           .venv/bin/python main.py \
             --port "${HITL_PORT}" \
             --baudrate 460800 \
-            --data-path "${GITHUB_WORKSPACE}/hitl-test-scripts/src/send_fake_data/sim_flight_data/packets_1_200hz.csv"
+            --data-path "${GITHUB_WORKSPACE}/hitl-test-scripts/src/send_fake_data/sim_flight_data/scratchy_flight_data.csv"
         env:
           HITL_PORT: ${{ vars.HITL_PORT || '/dev/ttyACM0' }}
 
