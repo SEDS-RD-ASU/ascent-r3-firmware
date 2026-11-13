@@ -204,7 +204,7 @@ void beep_pyro_cont(void) {
 }
 
 //MARK: PRIMARY TASK
-// Will be running at 100Hz on the primary core.
+// Operates at 100Hz on core 0
 TaskHandle_t primary_task_handle;
 int primary_loop_fq = 100;
 TickType_t xFrequency_primary;
@@ -317,7 +317,7 @@ void primary_task(void *pvParameters)
 
 
 //MARK: FAST SENSOR TASK
-// Operates at 200hz on core 1
+// Operates at 200Hz on core 0
 TaskHandle_t fast_sensor_task_handle;
 int fast_sensor_task_frequency = 200;
 TickType_t xFrequency_fast_sensor_task;
@@ -394,7 +394,7 @@ void fast_sensor_task(void *pvParameters)
 
 
 //MARK: SLOW SENSOR TASK
-// Operates at 20Hz on core 1
+// Operates at 20Hz on core 0
 TaskHandle_t slow_sensor_task_handle;
 int slow_sensor_frequency = 20;
 TickType_t xFrequency_slow_sensor;
@@ -421,7 +421,7 @@ void slow_sensor_task(void *pvParameters)
 
 
 //MARK: FLASH TASK
-// Operates at 300hz on core 1
+// Operates at 300Hz on core 1
 TaskHandle_t flash_task_handle;
 int flash_task_frequency = 300;
 TickType_t xFrequency_flash_task;
@@ -450,7 +450,7 @@ void flash_task(void *pvParameters)
 
 
 //MARK: TELEMETRY TASK
-// Operates at 1hz on the primary core
+// Operates at 5Hz on core 0
 TaskHandle_t telemetry_task_handle;
 int telemetry_loop_fq = 5;
 TickType_t xFrequency_telemetry;
@@ -674,14 +674,14 @@ void app_main(void)
         xTaskCreatePinnedToCore(simulator_task, "simulator_task", SIMULATOR_TASK_STACK_SIZE, NULL, 1, &simulator_task_handle, 1);
     #endif
 
-    // SECONDARY CORE TASKS
-    xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 2, &fast_sensor_task_handle, 0);
-
-    // PRIMARY CORE TASKS
-    xTaskCreatePinnedToCore(telemetry_task, "telemetry_task", 8192, NULL, 1, &telemetry_task_handle, 0);
-    xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 1, &flash_task_handle, 0);
-    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 0);
+    // CORE 0 TASKS
+    xTaskCreatePinnedToCore(fast_sensor_task, "fast_sensor_task", 8192, NULL, 4, &fast_sensor_task_handle, 0);
+    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 3, &primary_task_handle, 0);
     xTaskCreatePinnedToCore(slow_sensor_task, "slow_sensor_task", 8192, NULL, 1, &slow_sensor_task_handle, 0);
+    xTaskCreatePinnedToCore(telemetry_task, "telemetry_task", 8192, NULL, 1, &telemetry_task_handle, 0);
+
+    // CORE 1 TASKS
+    xTaskCreatePinnedToCore(flash_task, "flash_task", 4096, NULL, 2, &flash_task_handle, 1);
 
     led_yellow();
     high_beep();high_beep();high_beep(); // success!

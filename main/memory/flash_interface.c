@@ -28,6 +28,7 @@ static const char *TAG = "FLASH INTERFACE";
 
 #define MAX_SECTORS 16384
 #define SECTOR_SIZE 4096
+#define SECTORS_PER_BLOCK 16 // 64KB block erase
 
 #define BANKS 4
 #define BANK_SIZE (MAX_SECTORS * SECTOR_SIZE / BANKS)
@@ -171,10 +172,10 @@ static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t *resume) {
     bool should_stop = ((esp_timer_get_time() - start) >= max_time);
     if (max_time == 0) should_stop = false;
     while (!should_stop && i < (uint32_t)sectors_to_erase) {
-        w25qxx_sector_erase((base+i)*SECTOR_SIZE);
+        w25qxx_block_erase_64k((base+i)*SECTOR_SIZE);
         printf("%f\n", (float) i / (float) sectors_to_erase);
 
-        i++;
+        i += SECTORS_PER_BLOCK;
     }
 
     if(i >= (uint32_t)sectors_to_erase) {
