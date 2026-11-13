@@ -1,0 +1,20 @@
+name: Locally build the esp-idf firmware.
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.1
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out firmware
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+        
+      - name: Compile firmware
+        shell: bash
+        run: |
+          bash -c 'source $IDF_PATH/export.sh && idf.py fullclean && idf.py build'
