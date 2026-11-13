@@ -5,7 +5,52 @@ on:
   workflow_dispatch:
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.1
+    timeout-minutes: 20
+    env:
+      IDF_CCACHE_ENABLE: 1
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+    steps:
+      - name: Check out firmware
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-${{ github.sha }}
+          restore-keys: ccache-
+
+      - name: Enable HITL build flags
+        run: |
+          sed -i 's|^// #define SIMULATOR$|#define SIMULATOR|' main/main.c
+          grep -q '^#define DISABLE_BUZZER$' ascent-r3-drivers/indicator/src/driver_buzzer.c \
+            || sed -i '1a #define DISABLE_BUZZER' ascent-r3-drivers/indicator/src/driver_buzzer.c
+
+      - name: Compile firmware
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh" > /dev/null
+          idf.py build
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ github.run_id }}
+          path: |
+            build/flash_args
+            build/*.bin
+            build/*.elf
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin
+          if-no-files-found: error
+
   hitl:
+    needs: build
     runs-on: [self-hosted, linux, hitl]
     timeout-minutes: 30
     env:
@@ -16,8 +61,12 @@ jobs:
     steps:
       - name: Check out firmware
         uses: actions/checkout@v4
+
+      - name: Download firmware
+        uses: actions/download-artifact@v4
         with:
-          submodules: recursive
+          name: firmware-${{ github.run_id }}
+          path: prebuilt
 
       - name: Check out HITL scripts
         uses: actions/checkout@v4
@@ -37,16 +86,13 @@ jobs:
           python3 -m venv .venv
           .venv/bin/python -m pip install -r requirements.txt
 
-      - name: Compile firmware
-        run: |
-          bash -lc 'source "$IDF_ACTIVATE_SCRIPT" && idf.py build'
-
-      - name: Compile, flash, run HITL, and report to Discord
+      - name: Flash, run HITL, and report to Discord
         working-directory: hitl-test-scripts
         run: |
           .venv/bin/python main.py \
             --port "${HITL_PORT}" \
             --baudrate 460800 \
+            --prebuilt-dir "${GITHUB_WORKSPACE}/prebuilt" \
             --data-path "${GITHUB_WORKSPACE}/hitl-test-scripts/src/send_fake_data/sim_flight_data/scratchy_flight_data.csv"
         env:
           HITL_PORT: ${{ vars.HITL_PORT || '/dev/ttyACM0' }}
