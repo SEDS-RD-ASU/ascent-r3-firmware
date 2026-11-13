@@ -192,7 +192,7 @@ void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel)
 
     // Compute first-order backward finite difference
     if (agl_history[1] != 0) {
-        barometric_velocity = barometric_velocity*0.2 + ((agl_history[0] - agl_history[1]) / DT)*0.8;
+        barometric_velocity = barometric_velocity*0.2f + ((agl_history[0] - agl_history[1]) / DT)*0.8f;
     }
 
     // Update velocity samples
@@ -206,7 +206,7 @@ void baro_update(barometer_sample_t baro, barometer_velocity_t *baro_vel)
     }
 
     // Calculate the average velocity
-    average_barometric_velocity = sum / 10.0;
+    average_barometric_velocity = sum / 10.0f;
 
     // printf("AGL: %f, Pressure: %f, Velocity: %f\n", agl_history[0], baro.pressure, barometric_velocity);
 
