@@ -4,14 +4,17 @@ on: [push]
 
 jobs:
   build:
-    runs-on: [self-hosted, HITL]
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.1
+    timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out firmware
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Build Code
-        id: build
+        
+      - name: Compile firmware
+        shell: bash
         run: |
-              bash -c 'source /home/hitl/.espressif/tools/activate_idf_v6.1.sh && idf.py fullclean && idf.py build'
-          
+          bash -c 'source $IDF_PATH/export.sh && idf.py fullclean && idf.py build'
