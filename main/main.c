@@ -671,7 +671,7 @@ void app_main(void)
         ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
         ESP_LOGI("app_main", "USB_SERIAL_JTAG init done");
 
-        xTaskCreatePinnedToCore(simulator_task, "simulator_task", SIMULATOR_TASK_STACK_SIZE, NULL, 10, &simulator_task_handle, 1);
+        xTaskCreatePinnedToCore(simulator_task, "simulator_task", SIMULATOR_TASK_STACK_SIZE, NULL, 1, &simulator_task_handle, 1);
     #endif
 
     // SECONDARY CORE TASKS
