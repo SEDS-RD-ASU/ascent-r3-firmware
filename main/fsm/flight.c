@@ -68,7 +68,7 @@ static bool deploy(pyro_channel_t channel)
     for (int i = 0; i < 2; i++) {
         cont = pyro_continuity(channel);
         if (cont) {
-            pyro_activate(channel, 150*(i+1), 0);
+            pyro_activate(channel, 250, 0);
             // vTaskDelay(50 / portTICK_PERIOD_MS);
             cont = pyro_continuity(channel);
             if (!cont) return true;
