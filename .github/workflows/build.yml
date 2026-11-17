@@ -1,4 +1,4 @@
-name: Locally build the esp-idf firmware.
+name: Cloud build the esp-idf firmware.
 
 on: [push]
 
