@@ -1,41 +1,41 @@
 #include "flash_interface.h"
 
-#include "stdatomic.h"
+#include "ascent_r3_hardware_definition.h"
 #include "assert.h"
-#include "math.h"
-#include "stdlib.h"
+#include "beep.h"
 #include "stdio.h"
 #include "driver_w25qxx.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "freertos/semphr.h"
-#include "ascent_r3_hardware_definition.h"
+#include "freertos/task.h"
+#include "math.h"
+#include "stdatomic.h"
+#include "stdlib.h"
 #include <rom/ets_sys.h>
 #include <stdint.h>
-#include "beep.h"
 
 #include "serial_util.h"
 
-#include "nvs_flash.h"
 #include "nvs.h"
+#include "nvs_flash.h"
 
 #include "nvs_interface.h"
 
 #include "beep.h"
 #include "driver_buzzer.h"
 
-static const char *TAG = "FLASH INTERFACE";
+static const char* TAG = "FLASH INTERFACE";
 
 #define MAX_SECTORS 16384
 #define SECTOR_SIZE 4096
 
-#define BANKS 4
-#define BANK_SIZE (MAX_SECTORS * SECTOR_SIZE / BANKS)
+#define BANKS           4
+#define BANK_SIZE       (MAX_SECTORS * SECTOR_SIZE / BANKS)
 #define SECTORS_IN_BANK (MAX_SECTORS / BANKS)
 
-static uint32_t n = 0;
-static uint32_t addr = 0;
-static int32_t current_bank = -1;
+static uint32_t n            = 0;
+static uint32_t addr         = 0;
+static int32_t  current_bank = -1;
 
 static nvs_handle_t my_handle;
 
@@ -49,15 +49,22 @@ static const char* bank_keys[BANKS] = {
 #define RING_BUFFER_SIZE 50
 QueueHandle_t flash_packet_queue;
 
-void flash_erase_jingle(void);
-static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t *resume);
+typedef struct {
+    TaskHandle_t requester;
+} flash_control_request_t;
+
+static QueueHandle_t     flash_control_queue;
+static SemaphoreHandle_t flash_prepare_mutex;
+static _Atomic bool      flash_ready_for_flight = false;
+
+void             flash_erase_jingle(void);
+static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t* resume);
 
 uint32_t flash_get_addr() {
     return addr;
 }
 
-esp_err_t flash_flight_init(void)
-{
+esp_err_t flash_flight_init(void) {
     esp_err_t ret;
 
     ret = w25qxx_init();
@@ -85,10 +92,14 @@ esp_err_t flash_flight_init(void)
     flash_packet_queue = xQueueCreate(RING_BUFFER_SIZE, sizeof(flash_packet));
     assert(flash_packet_queue != NULL);
 
+    flash_control_queue = xQueueCreate(1, sizeof(flash_control_request_t));
+    assert(flash_control_queue != NULL);
 
-    if(ret == ESP_OK){
-        ESP_LOGI(TAG, "Initialized SPI flash!");
-    }
+    flash_prepare_mutex = xSemaphoreCreateMutex();
+    assert(flash_prepare_mutex != NULL);
+    atomic_store(&flash_ready_for_flight, false);
+
+    if (ret == ESP_OK) { ESP_LOGI(TAG, "Initialized SPI flash!"); }
 
     return ret;
 }
@@ -137,17 +148,59 @@ bool flash_prepare_for_flight(void) {
 
     // actually advance the bank
     current_bank = (current_bank + 1) % BANKS;
-    addr = current_bank*BANK_SIZE;
+    addr         = current_bank * BANK_SIZE;
 
     nvs_set_i32(my_handle, "bank", current_bank);
     printf("Ready to fly using bank: %ld\n", current_bank);
 
-	flash_erase_jingle();
+    flash_erase_jingle();
     return true;
 }
 
-// max_time == 0 means that the bank must be fully erased and that the function will block to ensure that
-static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t *resume) {
+bool flash_request_prepare_for_flight(void) {
+    flash_control_request_t request = {
+        .requester = xTaskGetCurrentTaskHandle(),
+    };
+
+    // Only one caller may wait for a preparation acknowledgment at a time.
+    if (xSemaphoreTake(flash_prepare_mutex, portMAX_DELAY) != pdTRUE) {
+        return false;
+    }
+
+    if (atomic_load(&flash_ready_for_flight)) {
+        xSemaphoreGive(flash_prepare_mutex);
+        return true;
+    }
+
+    xTaskNotifyStateClear(NULL);
+
+    if (xQueueSend(flash_control_queue, &request, portMAX_DELAY) != pdTRUE) {
+        xSemaphoreGive(flash_prepare_mutex);
+        return false;
+    }
+
+    bool prepared = ulTaskNotifyTake(pdTRUE, portMAX_DELAY) == 1;
+    xSemaphoreGive(flash_prepare_mutex);
+    return prepared;
+}
+
+void flash_process_control_requests(void) {
+    flash_control_request_t request;
+
+    if (xQueueReceive(flash_control_queue, &request, 0) != pdTRUE) { return; }
+
+    bool prepared = flash_prepare_for_flight();
+    atomic_store(&flash_ready_for_flight, prepared);
+    xTaskNotify(request.requester, prepared ? 1 : 0, eSetValueWithOverwrite);
+}
+
+bool flash_is_ready_for_flight(void) {
+    return atomic_load(&flash_ready_for_flight);
+}
+
+// max_time == 0 means that the bank must be fully erased and that the function
+// will block to ensure that
+static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t* resume) {
     int64_t start = esp_timer_get_time();
 
     printf("Erasing bank: %d\n", bank);
@@ -166,7 +219,7 @@ static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t *resume) {
         else i = *resume;
     }
 
-    uint32_t base = bank*SECTORS_IN_BANK;
+    uint32_t base = bank * SECTORS_IN_BANK;
 
     bool should_stop = ((esp_timer_get_time() - start) >= max_time);
     if (max_time == 0) should_stop = false;
@@ -205,16 +258,21 @@ void flash_dump_to_serial(int bank) {
     printf("DUMPING DATA FROM BANK: %d\n", bank);
     vTaskDelay(5000 / portTICK_PERIOD_MS);
 
-    addr = BANK_SIZE*bank;
-    printf("n, timestamp, bat_voltage, flight_state, pyro_cont, pressure, temperature, altitude_agl, ground_altitude, baro_vel, avg_baro_vel, UTCtstamp, lat, lon, altitude_ellipsoid, altitude_msl, fixType, num_sats, acc_x, acc_y, acc_z, hacc_x, hacc_y, hacc_z, gyr_x, gyr_y, gyr_z\n");
-    while (addr < MAX_SECTORS*SECTOR_SIZE && addr < BANK_SIZE*bank + BANK_SIZE) {
-        w25qxx_read(addr, (uint8_t*)&fp, sizeof(flash_packet));
+    addr = BANK_SIZE * bank;
+    printf("n, timestamp, bat_voltage, flight_state, pyro_cont, pressure, "
+           "temperature, altitude_agl, ground_altitude, baro_vel, "
+           "avg_baro_vel, UTCtstamp, lat, lon, altitude_ellipsoid, "
+           "altitude_msl, fixType, num_sats, acc_x, acc_y, acc_z, hacc_x, "
+           "hacc_y, hacc_z, gyr_x, gyr_y, gyr_z\n");
+    while (addr < MAX_SECTORS * SECTOR_SIZE &&
+           addr < BANK_SIZE * bank + BANK_SIZE) {
+        w25qxx_read(addr, (uint8_t*) &fp, sizeof(flash_packet));
         addr += sizeof(flash_packet);
 
-        bool all = true;
+        bool           all = true;
         const uint8_t* buf = (uint8_t*) &fp;
         for (int i = 0; i < sizeof(flash_packet); i++) {
-            if (buf[i] != 0xFF) all=false;
+            if (buf[i] != 0xFF) all = false;
         }
         if (all) break;
 
@@ -279,17 +337,17 @@ void flash_write_packet(flash_packet *packet) {
     }
 }
 
-void flash_queue_packet(flash_packet *packet) {
+void flash_queue_packet(flash_packet* packet) {
     packet->n = n++;
     if (xQueueSendToBack(flash_packet_queue, packet, 0) != pdTRUE) {
-        // vTaskDelay(pdMS_TO_TICKS(1)); 
+        // vTaskDelay(pdMS_TO_TICKS(1));
         // printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
 
         flash_packet oldItem;
         xQueueReceive(flash_packet_queue, &oldItem, 0);
-        
+
         if (xQueueSendToBack(flash_packet_queue, packet, 1) != pdTRUE) {
-            // vTaskDelay(pdMS_TO_TICKS(1)); 
+            // vTaskDelay(pdMS_TO_TICKS(1));
             printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
         }
         // printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
@@ -297,12 +355,12 @@ void flash_queue_packet(flash_packet *packet) {
 }
 
 void flash_write_queue(int64_t max_time) {
-    int64_t start = esp_timer_get_time();
+    int64_t      start = esp_timer_get_time();
     flash_packet packet;
 
     static UBaseType_t max_count = 0;
-    UBaseType_t count = uxQueueMessagesWaiting(flash_packet_queue);
-    max_count = count > max_count ? count : max_count;
+    UBaseType_t        count     = uxQueueMessagesWaiting(flash_packet_queue);
+    max_count                    = count > max_count ? count : max_count;
     // printf("ITEMS IN QUEUE: %u, %u\n", count, max_count);
 
     while ((esp_timer_get_time() - start) < max_time) {
@@ -322,13 +380,15 @@ void flash_print_stats() {
     for (int i = 0; i < BANKS; i++) {
         int32_t used;
         nvs_get_i32(my_handle, bank_keys[i], &used);
-        printf("Bank %d, %ld/%d, %f\n", i, used, BANK_SIZE, (float) used / (float) BANK_SIZE);
+        printf("Bank %d, %ld/%d, %f\n", i, used, BANK_SIZE,
+               (float) used / (float) BANK_SIZE);
     }
     printf("\n");
 }
 
 void flash_blank_slate() {
-    printf("CHIP ERASE, please be patient lol, this will take 5-10min lol, DO NOT POWER OFF....\n");
+    printf("CHIP ERASE, please be patient lol, this will take 5-10min lol, DO "
+           "NOT POWER OFF....\n");
     w25qxx_chip_erase();
     nvs_set_i32(my_handle, "bank", 0);
     for (int i = 0; i < BANKS; i++) {
@@ -342,12 +402,15 @@ void try_to_dump_data() {
     printf("You have 5 seconds to enter \"DUMP\" to enter data dumping mode\n");
     vTaskDelay(5000 / portTICK_PERIOD_MS);
     char buf[512];
-    int i = 0;
-    while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
+    int  i = 0;
+    while (serial_util_readline_nonblocking(buf, 512, &i,
+                                            1000 / portTICK_PERIOD_MS)) {
         if (strcmp("DUMP", buf) == 0) {
             while (true) {
-                printf("Enter the bank to dump (last bank used: %ld):\n", flash_get_last_used_bank());
-                while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
+                printf("Enter the bank to dump (last bank used: %ld):\n",
+                       flash_get_last_used_bank());
+                while (serial_util_readline_nonblocking(
+                    buf, 512, &i, 1000 / portTICK_PERIOD_MS)) {
                     int bank = atoi(buf);
                     flash_dump_to_serial(bank);
                     for (int j = 0; j < 3; j++) {
